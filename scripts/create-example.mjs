@@ -1,0 +1,11 @@
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+import { mkdir } from 'node:fs/promises';
+import { createWriteStream } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
+import { ZipFile } from 'yazl';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+await mkdir(path.join(root, 'artifacts/examples'), { recursive: true });
+const zip = new ZipFile(); zip.addFile(path.join(root, 'examples/review-helper/SKILL.md'), 'review-helper/SKILL.md'); zip.end();
+const output = path.join(root, 'artifacts/examples/review-helper-1.0.0.zip');
+await pipeline(zip.outputStream, createWriteStream(output)); console.log(output);

@@ -1,0 +1,8 @@
+{
+  "name": "@ai-hub/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {".": "./src/index.ts", "./archive": "./src/archive.ts"},
+  "dependencies": {"semver": "^7.7.0", "yaml": "^2.8.0", "yauzl": "3.4.0"}
+}

@@ -1,6 +1,6 @@
 {
   "name": "@ai-hub/desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "AI Hub Windows skill manager",
   "author": "AI Hub",
@@ -11,18 +11,50 @@
     "typecheck": "tsc --noEmit",
     "package": "electron-builder --win nsis --x64 --publish never"
   },
-  "dependencies": {"electron-updater": "6.8.10", "electron-log": "^5.4.0"},
+  "dependencies": {
+    "electron-updater": "6.8.10",
+    "electron-log": "^5.4.0"
+  },
   "devDependencies": {
-    "@ai-hub/shared": "*", "next": "16.4.0", "react": "19.3.0", "react-dom": "19.3.0",
-    "react-markdown": "^10.1.0", "electron": "44.7.0", "electron-builder": "26.17.0"
+    "@ai-hub/shared": "*",
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-markdown": "^10.1.0",
+    "electron": "44.7.0",
+    "electron-builder": "26.17.0"
   },
   "build": {
-    "appId": "com.aihub.desktop", "productName": "AI Hub",
-    "directories": {"output": "../../artifacts/desktop"},
-    "files": ["dist/**/*", "out/**/*", "package.json"],
+    "appId": "com.aihub.desktop",
+    "productName": "AI Hub",
+    "directories": {
+      "output": "../../artifacts/desktop"
+    },
+    "files": [
+      "dist/**/*",
+      "out/**/*",
+      "package.json"
+    ],
     "asar": true,
-    "win": {"target": ["nsis"], "icon": "build/icon.ico", "artifactName": "AI-Hub-Setup-${version}.${ext}", "verifyUpdateCodeSignature": false},
-    "nsis": {"oneClick": true, "perMachine": false, "deleteAppDataOnUninstall": false, "language": "2052"},
-    "publish": [{"provider": "generic", "url": "http://127.0.0.1:3000/updates/win-x64/"}]
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "AI-Hub-Setup-${version}.${ext}",
+      "verifyUpdateCodeSignature": false
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false,
+      "language": "2052"
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "http://127.0.0.1:3000/updates/win-x64/"
+      }
+    ]
   }
 }

@@ -3,7 +3,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "AI Hub 管理中心",
-  description: "管理局域网 AI 技能库与桌面端更新。",
+  description: "AI Hub 技能库与桌面端更新管理",
+  icons: "/icon.png",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

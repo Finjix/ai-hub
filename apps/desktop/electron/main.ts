@@ -100,7 +100,7 @@ async function createWindow() {
     headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-src 'none'");
     return new Response(request.method === 'HEAD' ? null : response.body, { status: response.status, headers });
   });
-  window = new BrowserWindow({ width: 1250, height: 830, minWidth: 980, minHeight: 650, title: 'AI Hub', icon: path.join(app.getAppPath(), 'out/icon.png'), backgroundColor: '#f6f7fb', autoHideMenuBar: true, show: process.env.AI_HUB_HEADLESS !== '1', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: process.env.AI_HUB_HEADLESS !== '1' } });
+  window = new BrowserWindow({ width: 1250, height: 830, minWidth: 980, minHeight: 650, title: 'AI Hub', icon: path.join(app.getAppPath(), 'out/icon.png'), backgroundColor: '#f4f5f2', autoHideMenuBar: true, show: process.env.AI_HUB_HEADLESS !== '1', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: process.env.AI_HUB_HEADLESS !== '1' } });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event, target) => {
     const expected = devUrl ? new URL(devUrl).origin : 'aihub://app';

@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { formatAppVersion } from '@ai-hub/shared';
+import { renderIntroduction } from './introduction';
 import type { DesktopSnapshot, LocalSkill, Skill, SkillDetail, TaskStatus } from '@ai-hub/shared';
 
 type View = 'store' | 'installed' | 'settings';
@@ -64,7 +65,7 @@ export default function Home() {
     setConnecting(false);
   };
   const showDetail = async (skill: Skill) => {
-    setDetail({ ...skill, versions: skill.latestVersion ? [skill.latestVersion] : [] });
+    setDetail({ ...skill, introduction: '', versions: skill.latestVersion ? [skill.latestVersion] : [] });
     if (state.connected) await action(async () => setDetail(await window.aiHub!.detail(skill.id)));
   };
   // Only flag offline once the startup/refresh sync has finished without connecting.
@@ -162,7 +163,9 @@ export default function Home() {
       </header>
       {detail.description && <p className="detail-desc">{detail.description}</p>}
       {detail.latestVersion?.changelog && <div className="changelog"><strong className="num">v{detail.latestVersion.version} 更新</strong><p>{detail.latestVersion.changelog}</p></div>}
-      <div className="markdown"><ReactMarkdown skipHtml>{detail.latestVersion?.markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '') ?? '暂无说明'}</ReactMarkdown></div>
+      {detail.introduction?.trim()
+        ? <div className="markdown intro" dangerouslySetInnerHTML={{ __html: renderIntroduction(detail.introduction, state.serverUrl) }}/>
+        : <div className="markdown"><ReactMarkdown skipHtml>{detail.latestVersion?.markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '') ?? '暂无说明'}</ReactMarkdown></div>}
     </section></div>}
     {remove && <div className="backdrop" onClick={() => setRemove(null)}><section className="dialog confirm" role="dialog" aria-modal="true" aria-label="卸载技能" onClick={event => event.stopPropagation()}>
       <h2>卸载「{remove.managed?.displayName}」？</h2>

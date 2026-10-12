@@ -13,6 +13,7 @@ export interface SkillRow {
   description: string;
   category: string;
   tags_json: string;
+  introduction: string;
   status: SkillStatus;
   created_at: string;
   updated_at: string;
@@ -61,6 +62,7 @@ export function getStore(): Store {
   mkdirSync(root, { recursive: true });
   mkdirSync(path.join(root, "tmp"), { recursive: true });
   mkdirSync(path.join(root, "skills"), { recursive: true });
+  mkdirSync(path.join(root, "media"), { recursive: true });
   mkdirSync(path.join(root, "updates", "versions"), { recursive: true });
 
   const db = new DatabaseSync(path.join(root, "ai-hub.sqlite"));
@@ -107,6 +109,10 @@ export function getStore(): Store {
       active INTEGER NOT NULL DEFAULT 0 CHECK (active IN (0,1))
     );
   `);
+  const skillColumns = db.prepare("PRAGMA table_info(skills)").all() as unknown as { name: string }[];
+  if (!skillColumns.some((column) => column.name === "introduction")) {
+    db.exec("ALTER TABLE skills ADD COLUMN introduction TEXT NOT NULL DEFAULT ''");
+  }
 
   db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('server_id', ?)").run(randomUUID());
   const serverId = (db.prepare("SELECT value FROM settings WHERE key = 'server_id'").get() as { value: string }).value;

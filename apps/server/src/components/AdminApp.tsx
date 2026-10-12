@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatAppVersion } from "@ai-hub/shared";
 import type { Skill, SkillDetail, SkillVersion } from "@ai-hub/shared";
+import SkillEditorPage, { type EditorTarget } from "@/components/SkillEditorPage";
 
 type Release = { id: string; version: string; createdAt: string; active: boolean; files: string[] };
 type Tab = "skills" | "releases";
@@ -67,7 +68,9 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [selected, setSelected] = useState<SkillDetail | null>(null);
-  const [newOpen, setNewOpen] = useState(false);
+  const [editor, setEditor] = useState<EditorTarget | null>(null);
+  const leaveGuard = useRef<(() => boolean) | null>(null);
+  const registerGuard = useCallback((guard: (() => boolean) | null) => { leaveGuard.current = guard; }, []);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState("");
@@ -90,7 +93,7 @@ export default function Home() {
   useEffect(() => { void refreshAll(); }, [refreshAll]);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { setSelected(null); setNewOpen(false); }
+      if (event.key === "Escape") setSelected(null);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -134,21 +137,37 @@ export default function Home() {
     finally { setBusy(false); }
   }
 
-  async function uploadSkill(event: React.FormEvent<HTMLFormElement>, targetId?: string) {
+  async function uploadVersion(event: React.FormEvent<HTMLFormElement>, targetId: string) {
     event.preventDefault();
     const formElement = event.currentTarget;
     const data = new FormData(formElement);
     setBusy(true);
     try {
-      const endpoint = targetId ? `/api/v1/admin/skills/${targetId}/versions` : "/api/v1/admin/skills";
-      const result = await api<{ status?: string }>(endpoint, { method: "POST", body: data });
+      await api(`/api/v1/admin/skills/${targetId}/versions`, { method: "POST", body: data });
       formElement.reset();
-      setNewOpen(false);
       await refreshSkills();
-      if (targetId) await openSkill({ ...selected!, id: targetId });
-      setToast(targetId ? "新版本已添加为草稿" : result.status === "published" ? "技能已添加并发布" : "技能已添加为草稿");
+      await openSkill({ ...selected!, id: targetId });
+      setToast("新版本已添加为草稿");
     } catch (cause) { showError(cause); }
     finally { setBusy(false); }
+  }
+
+  function goTo(next: Tab) {
+    if (editor && leaveGuard.current && !leaveGuard.current()) return;
+    setEditor(null);
+    setTab(next);
+  }
+
+  function editIntroduction() {
+    if (!selected) return;
+    setEditor({ mode: "edit", skill: selected });
+    setSelected(null);
+  }
+
+  async function editorSaved(message: string) {
+    setEditor(null);
+    setToast(message);
+    await refreshSkills().catch(showError);
   }
 
   async function changeVersion(version: SkillVersion, action: "publish" | "withdraw") {
@@ -183,16 +202,17 @@ export default function Home() {
     <aside className="rail">
       <div className="brand"><Mark/><div className="brand-title"><span className="brand-name">MCC AI 工具平台</span><span className="brand-by">管理后台</span></div></div>
       <nav aria-label="主导航">
-        <button className={tab === "skills" ? "nav-item active" : "nav-item"} aria-current={tab === "skills" ? "page" : undefined} onClick={() => setTab("skills")}><Icon name="box"/><span>技能库</span></button>
-        <button className={tab === "releases" ? "nav-item active" : "nav-item"} aria-current={tab === "releases" ? "page" : undefined} onClick={() => setTab("releases")}><Icon name="download"/><span>桌面端更新</span></button>
+        <button className={tab === "skills" ? "nav-item active" : "nav-item"} aria-current={tab === "skills" ? "page" : undefined} onClick={() => goTo("skills")}><Icon name="box"/><span>技能库</span></button>
+        <button className={tab === "releases" ? "nav-item active" : "nav-item"} aria-current={tab === "releases" ? "page" : undefined} onClick={() => goTo("releases")}><Icon name="download"/><span>桌面端更新</span></button>
       </nav>
     </aside>
 
     <main className="main">
       {error && <div className="banner"><span>{error}</span><button className="btn btn-line btn-sm" onClick={() => void refreshAll()}>重新连接</button></div>}
 
-      {tab === "skills" ? <section className="page">
-        <header className="page-head"><h1>技能库</h1><div className="head-tools"><button className="btn btn-ink" onClick={() => setNewOpen(true)}><Icon name="plus" size={16}/>添加技能</button></div></header>
+      {tab === "skills" && editor ? <SkillEditorPage key={editor.mode === "edit" ? editor.skill.id : "new"} target={editor} onClose={() => setEditor(null)} onSaved={(message) => void editorSaved(message)} onError={setToast} registerGuard={registerGuard}/>
+      : tab === "skills" ? <section className="page">
+        <header className="page-head"><h1>技能库</h1><div className="head-tools"><button className="btn btn-ink" onClick={() => setEditor({ mode: "create" })}><Icon name="plus" size={16}/>添加技能</button></div></header>
         <div className="toolbar">
           <div className="tabs" role="tablist" aria-label="上架状态">{statusTabs.map(([id, label, count]) => <button key={id} role="tab" aria-selected={statusFilter === id} className={statusFilter === id ? "selected" : ""} onClick={() => setStatusFilter(id)}>{label}<span>{loading ? "–" : count}</span></button>)}</div>
           <label className="search"><Icon name="search" size={16}/><input aria-label="搜索技能" placeholder="搜索技能" value={search} onChange={(event) => setSearch(event.target.value)}/></label>
@@ -237,7 +257,7 @@ export default function Home() {
       <header className="drawer-head"><div><h2>{selected.displayName}</h2><code>{selected.name}</code></div><Status status={selected.status}/><button className="icon-btn" aria-label="关闭" onClick={() => setSelected(null)}><Icon name="close"/></button></header>
       <div className="drawer-body">
         <form className="form-block" onSubmit={saveMetadata}>
-          <div className="block-head"><h3>基本信息</h3><button className="btn btn-line btn-sm" disabled={busy}>保存</button></div>
+          <div className="block-head"><h3>基本信息</h3><div className="block-tools"><button type="button" className="btn btn-line btn-sm" onClick={editIntroduction}>编辑介绍</button><button className="btn btn-line btn-sm" disabled={busy}>保存</button></div></div>
           <label className="field">展示名称<input name="displayName" defaultValue={selected.displayName} required maxLength={120}/></label>
           <label className="field">简介<textarea name="description" defaultValue={selected.description} rows={3} maxLength={2000}/></label>
           <label className="field">上架状态<select name="status" defaultValue={selected.status}><option value="active">已上架</option><option value="archived">已归档</option></select></label>
@@ -250,7 +270,7 @@ export default function Home() {
             {version.status === "published" && <button className="btn btn-line btn-sm" disabled={busy} onClick={() => void changeVersion(version, "withdraw")}>撤回</button>}
           </li>)}</ol> : <p className="muted">还没有版本。</p>}
         </section>
-        <form className="form-block" onSubmit={(event) => void uploadSkill(event, selected.id)}>
+        <form className="form-block" onSubmit={(event) => void uploadVersion(event, selected.id)}>
           <div className="block-head"><h3>上传新版本</h3></div>
           <div className="form-row"><label className="field">版本号<input name="version" placeholder="如 1.2.0" required/></label><div className="field">技能包<FileField name="file" accept=".zip" label="选择 ZIP"/></div></div>
           <label className="field">更新说明<textarea name="changelog" rows={2}/></label>
@@ -261,15 +281,6 @@ export default function Home() {
       </div>
     </section></div>}
 
-    {newOpen && <div className="overlay center" onMouseDown={(event) => { if (event.target === event.currentTarget) setNewOpen(false); }}><section className="modal" role="dialog" aria-modal="true" aria-label="添加技能">
-      <header className="modal-head"><h2>添加技能</h2><button className="icon-btn" aria-label="关闭" onClick={() => setNewOpen(false)}><Icon name="close"/></button></header>
-      <form className="modal-form" onSubmit={(event) => void uploadSkill(event)}>
-        <div className="field">技能包<FileField name="file" accept=".zip" label="选择包含 SKILL.md 的 ZIP"/></div>
-        <label className="field">初始版本<input name="version" placeholder="如 1.0.0" required/></label>
-        <label className="field">展示名称<input name="displayName" maxLength={120} required/></label>
-        <div className="modal-foot"><span/><button className="btn btn-ink" disabled={busy}>{busy ? <><span className="spinner sm"/>上传中…</> : "添加技能"}</button></div>
-      </form>
-    </section></div>}
     {toast && <div className="toast" role="status"><span>{toast}</span><button aria-label="关闭提示" onClick={() => setToast("")}><Icon name="close" size={15}/></button></div>}
   </div>;
 }

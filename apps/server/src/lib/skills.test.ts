@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getStore } from "./db";
-import { listSkills } from "./skills";
+import { getSkill, listSkills } from "./skills";
 
 describe("skill search", () => {
   const previousDataDir = process.env.AI_HUB_DATA_DIR;
@@ -34,5 +34,12 @@ describe("skill search", () => {
 
   it("treats percent and underscore in a search term literally", () => {
     expect(listSkills({ q: "%_needle", admin: true }).skills.map((skill) => skill.name)).toEqual(["literal-search"]);
+  });
+
+  it("returns the skill introduction in the detail", () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    expect(getSkill(id, true)?.skill.introduction).toBe("");
+    store.db.prepare("UPDATE skills SET introduction=? WHERE id=?").run('<h2>介绍</h2><img src="/media/x.png">', id);
+    expect(getSkill(id, true)?.skill.introduction).toBe('<h2>介绍</h2><img src="/media/x.png">');
   });
 });

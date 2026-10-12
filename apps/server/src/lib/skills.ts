@@ -71,7 +71,7 @@ export function getSkill(id: string, admin = false): { serverId: string; skill: 
   const versions = versionsFor(id, !admin);
   const published = latestPublished(versions);
   if (!admin && !published) return null;
-  return { serverId, skill: { ...skillBase(row, published), versions } };
+  return { serverId, skill: { ...skillBase(row, published), introduction: row.introduction, versions } };
 }
 
 export function isValidSkillId(value: string): boolean {

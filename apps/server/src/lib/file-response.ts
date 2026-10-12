@@ -2,7 +2,7 @@ import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
 
-export async function streamFile(filePath: string, request?: Request, name?: string): Promise<Response> {
+export async function streamFile(filePath: string, request?: Request, name?: string, extraHeaders: Record<string, string> = {}): Promise<Response> {
   const info = await stat(filePath);
   const range = request?.headers.get("range");
   const headers = new Headers({
@@ -10,6 +10,7 @@ export async function streamFile(filePath: string, request?: Request, name?: str
     "Content-Length": String(info.size),
     "Content-Type": "application/octet-stream",
     "X-Content-Type-Options": "nosniff",
+    ...extraHeaders,
   });
   if (name) headers.set("Content-Disposition", `attachment; filename="${name.replace(/["\\\r\n]/g, "_")}"`);
 

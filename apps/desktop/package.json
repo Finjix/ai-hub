@@ -12,17 +12,21 @@
     "package": "electron-builder --win nsis --x64 --publish never"
   },
   "dependencies": {
-    "electron-updater": "6.8.10",
-    "electron-log": "^5.4.0"
+    "electron-log": "^5.4.0",
+    "electron-updater": "6.8.10"
   },
   "devDependencies": {
     "@ai-hub/shared": "*",
+    "electron": "44.7.0",
+    "electron-builder": "26.17.0",
     "next": "16.4.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-markdown": "^10.1.0",
-    "electron": "44.7.0",
-    "electron-builder": "26.17.0"
+    "rehype-parse": "^9.0.1",
+    "rehype-sanitize": "^6.0.0",
+    "rehype-stringify": "^10.0.1",
+    "unified": "^11.0.5"
   },
   "build": {
     "appId": "com.aihub.desktop",

@@ -34,4 +34,10 @@ describe("download range responses", () => {
     expect(invalid.headers.get("content-range")).toBe("bytes */10");
     expect(invalid.headers.get("content-length")).toBe("0");
   });
+
+  it("lets callers override the content type for inline media", async () => {
+    const response = await streamFile(file, undefined, undefined, { "Content-Type": "video/mp4" });
+    expect(response.headers.get("content-type")).toBe("video/mp4");
+    expect(response.headers.get("content-disposition")).toBeNull();
+  });
 });

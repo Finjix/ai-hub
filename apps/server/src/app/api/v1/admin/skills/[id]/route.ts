@@ -34,10 +34,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const input = body as Record<string, unknown>;
     const displayName = input.displayName === undefined ? row.display_name : textField(input.displayName, "展示名称", 120);
     const description = input.description === undefined ? row.description : textField(input.description, "简介", 2000, true);
+    const introduction = input.introduction === undefined ? row.introduction : textField(input.introduction, "技能介绍", 200_000, true);
     const status = input.status === undefined ? row.status : input.status;
     if (status !== "active" && status !== "archived") throw new HttpError(400, "技能状态只能是 active 或 archived。");
-    db.prepare("UPDATE skills SET display_name=?,description=?,status=?,updated_at=? WHERE id=?")
-      .run(displayName, description, status, new Date().toISOString(), id);
+    db.prepare("UPDATE skills SET display_name=?,description=?,introduction=?,status=?,updated_at=? WHERE id=?")
+      .run(displayName, description, introduction, status, new Date().toISOString(), id);
     const result = getSkill(id, true);
     return NextResponse.json(result);
   } catch (error) {

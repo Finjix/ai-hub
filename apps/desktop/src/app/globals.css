@@ -194,6 +194,12 @@ input:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(42, 42, 42, .12)
 .markdown code { padding: 1px 5px; border-radius: 4px; background: var(--sunken); font: 12.5px Consolas, "Cascadia Mono", monospace; }
 .markdown pre { padding: 14px 16px; overflow: auto; border-radius: 8px; background: var(--sunken); line-height: 1.6; }
 .markdown pre code { padding: 0; background: none; }
+/* Matches the admin editor, whose default ("中") size is 17px. */
+.markdown.intro { color: var(--ink); font-size: 17px; }
+.markdown img, .markdown video { display: block; max-width: 100%; height: auto; margin: 14px 0; border-radius: 8px; }
+.markdown video { width: 100%; background: #000; }
+.markdown blockquote { margin: 10px 0; padding: 2px 0 2px 14px; border-left: 3px solid var(--line-strong); }
+.markdown hr { border: 0; border-top: 1px solid var(--line); margin: 20px 0; }
 .confirm { width: 420px; max-width: 100%; padding: 26px; }
 .confirm h2 { font-size: 17px; font-weight: 700; }
 .confirm p { margin-top: 8px; color: var(--ink-2); }

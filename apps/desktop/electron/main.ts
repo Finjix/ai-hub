@@ -125,7 +125,7 @@ async function createWindow() {
     catch { return new Response('Not found', { status: 404 }); }
     const response = await net.fetch(pathToFileURL(file).toString());
     const headers = new Headers(response.headers);
-    headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-src 'none'");
+    headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: http: https:; media-src http: https:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-src 'none'");
     return new Response(request.method === 'HEAD' ? null : response.body, { status: response.status, headers });
   });
   window = new BrowserWindow({ width: 1250, height: 830, minWidth: 980, minHeight: 650, title: `MCC AI 工具平台 ${formatAppVersion(app.getVersion())}`, icon: path.join(app.getAppPath(), 'out/icon.png'), backgroundColor: '#f4f5f2', autoHideMenuBar: true, show: process.env.AI_HUB_HEADLESS !== '1' && !startHidden, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: process.env.AI_HUB_HEADLESS !== '1' } });

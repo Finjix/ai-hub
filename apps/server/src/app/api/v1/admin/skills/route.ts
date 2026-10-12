@@ -3,12 +3,14 @@ import { rm } from "node:fs/promises";
 import { NextResponse } from "next/server";
 import { isNewerVersion } from "@ai-hub/shared";
 import { getStore, type SkillRow, type VersionRow } from "@/lib/db";
-import { HttpError, jsonError, requireSameOrigin, requiredText } from "@/lib/http";
+import { HttpError, jsonError, optionalText, requireSameOrigin, requiredText } from "@/lib/http";
 import { listSkills } from "@/lib/skills";
 import { assertVersion, inspectUpload, persistArchive, removeTemp } from "@/lib/zip-upload";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const INTRODUCTION_MAX = 200_000;
 
 export async function GET() {
   try {
@@ -29,6 +31,7 @@ export async function POST(request: Request) {
     const version = requiredText(form.get("version"), "版本号", 100);
     assertVersion(version);
     const displayName = requiredText(form.get("displayName"), "展示名称", 120);
+    const introduction = optionalText(form.get("introduction"), INTRODUCTION_MAX) ?? "";
     const changelog = "";
 
     const { db } = getStore();
@@ -55,6 +58,7 @@ export async function POST(request: Request) {
         // Category/tags are no longer used; the legacy NOT NULL columns get neutral values.
         category: "",
         tags_json: "[]",
+        introduction,
         status: "active",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -70,8 +74,10 @@ export async function POST(request: Request) {
     try {
       db.exec("BEGIN IMMEDIATE");
       if (newSkill) {
-        db.prepare(`INSERT INTO skills (id,name,display_name,description,category,tags_json,status,created_at,updated_at)
-          VALUES (?,?,?,?,?,?,?,?,?)`).run(skill.id, skill.name, skill.display_name, skill.description, skill.category, skill.tags_json, skill.status, skill.created_at, skill.updated_at);
+        db.prepare(`INSERT INTO skills (id,name,display_name,description,category,tags_json,introduction,status,created_at,updated_at)
+          VALUES (?,?,?,?,?,?,?,?,?,?)`).run(skill.id, skill.name, skill.display_name, skill.description, skill.category, skill.tags_json, skill.introduction, skill.status, skill.created_at, skill.updated_at);
+      } else if (introduction) {
+        db.prepare("UPDATE skills SET introduction=?,updated_at=? WHERE id=?").run(introduction, now, skill.id);
       }
       db.prepare(`INSERT INTO skill_versions
         (id,skill_id,version,status,sha256,size,download_path,archive_path,markdown,changelog,created_at,published_at)

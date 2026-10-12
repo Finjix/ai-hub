@@ -10,7 +10,7 @@ export interface Skill {
   status: 'active' | 'archived'; latestVersion: SkillVersion | null;
   createdAt: string; updatedAt: string;
 }
-export interface SkillDetail extends Skill { versions: SkillVersion[] }
+export interface SkillDetail extends Skill { introduction: string; versions: SkillVersion[] }
 export interface SkillListResponse { serverId: string; skills: Skill[] }
 export interface HealthResponse { ok: true; serverId: string; nodeVersion: string }
 export interface InstalledSkill {

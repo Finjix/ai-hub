@@ -92,18 +92,3 @@ export function optionalText(value: FormDataEntryValue | null, max = 4000): stri
   if (trimmed.length > max) throw new HttpError(400, `字段不能超过 ${max} 个字符。`);
   return trimmed;
 }
-
-export function parseTagsInput(value: unknown): string[] {
-  let tags = value;
-  if (typeof value === "string") {
-    try { tags = JSON.parse(value); } catch { throw new HttpError(400, "标签格式不正确，请使用 JSON 数组。"); }
-  }
-  if (!Array.isArray(tags) || tags.some((tag) => typeof tag !== "string")) {
-    throw new HttpError(400, "标签格式不正确，请使用字符串数组。");
-  }
-  const normalized = [...new Set(tags.map((tag: string) => tag.trim()).filter(Boolean))];
-  if (normalized.length > 30 || normalized.some((tag) => tag.length > 40)) {
-    throw new HttpError(400, "最多可添加 30 个标签，每个标签不超过 40 个字符。");
-  }
-  return normalized;
-}

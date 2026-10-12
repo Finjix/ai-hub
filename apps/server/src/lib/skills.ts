@@ -1,6 +1,6 @@
 import { isNewerVersion } from "@ai-hub/shared";
 import type { Skill, SkillDetail, SkillListResponse, SkillVersion } from "@ai-hub/shared";
-import { getStore, parseTags, type SkillRow, type VersionRow } from "./db";
+import { getStore, type SkillRow, type VersionRow } from "./db";
 
 function toVersion(row: VersionRow): SkillVersion {
   return {
@@ -24,8 +24,6 @@ function skillBase(row: SkillRow, latestVersion: SkillVersion | null): Skill {
     name: row.name,
     displayName: row.display_name,
     description: row.description,
-    category: row.category,
-    tags: parseTags(row.tags_json),
     status: row.status,
     latestVersion,
     createdAt: row.created_at,
@@ -47,16 +45,15 @@ export function latestPublished(versions: SkillVersion[]): SkillVersion | null {
   }, null);
 }
 
-export function listSkills({ q = "", category = "", admin = false }: { q?: string; category?: string; admin?: boolean } = {}): SkillListResponse {
+export function listSkills({ q = "", admin = false }: { q?: string; admin?: boolean } = {}): SkillListResponse {
   const { db, serverId } = getStore();
   const conditions: string[] = [];
   const args: string[] = [];
   if (!admin) conditions.push("status = 'active'");
-  if (category) { conditions.push("category = ?"); args.push(category); }
   if (q.trim()) {
-    conditions.push("(name LIKE ? ESCAPE '\\' OR display_name LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\' OR tags_json LIKE ? ESCAPE '\\')");
+    conditions.push("(name LIKE ? ESCAPE '\\' OR display_name LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\')");
     const like = `%${q.trim().replace(/[\\%_]/g, "\\$&")}%`;
-    args.push(like, like, like, like);
+    args.push(like, like, like);
   }
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
   const rows = db.prepare(`SELECT * FROM skills ${where} ORDER BY updated_at DESC, display_name COLLATE NOCASE`).all(...args) as unknown as SkillRow[];

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, net, protocol, shell, Tray } from 'electron';
 import path from 'node:path';
 import { lstat } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
@@ -6,6 +6,7 @@ import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import { SkillEngine } from './engine';
 import type { AppUpdateState } from '@ai-hub/shared';
+import { formatAppVersion } from '@ai-hub/shared';
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'aihub', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 if (process.env.AI_HUB_TEST_MODE === '1' && process.env.AI_HUB_USER_DATA_DIR) {
@@ -13,11 +14,15 @@ if (process.env.AI_HUB_TEST_MODE === '1' && process.env.AI_HUB_USER_DATA_DIR) {
   app.setPath('cache', path.join(path.resolve(process.env.AI_HUB_USER_DATA_DIR), 'cache'));
 }
 let window: BrowserWindow | null = null;
+let tray: Tray | null = null;
 let engine: SkillEngine;
 let updateCheck = false;
 let quitRequested = false;
+let quitting = false;
 let broadcasting = 0;
 const devUrl = !app.isPackaged ? process.env.AI_HUB_DEV_URL : undefined;
+// Login-item launches pass --hidden so the app starts silently in the tray.
+const startHidden = process.argv.includes('--hidden');
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
 
 async function broadcast() {
@@ -25,9 +30,22 @@ async function broadcast() {
   const snapshot = await engine.snapshot();
   if (sequence === broadcasting && window && !window.isDestroyed()) window.webContents.send('hub:changed', snapshot);
 }
+// Only the installed app registers itself; in development this would point Windows at the bare electron.exe.
+function applyLaunchAtLogin() {
+  if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: engine.launchAtLogin, args: ['--hidden'] });
+}
+function showWindow() { if (!window) return; if (window.isMinimized()) window.restore(); window.show(); window.focus(); }
+function createTray() {
+  const icon = nativeImage.createFromPath(path.join(app.getAppPath(), 'out/icon.png'));
+  if (icon.isEmpty()) return;
+  tray = new Tray(icon.resize({ width: 16, height: 16 }));
+  tray.setToolTip('MCC AI 工具平台');
+  tray.setContextMenu(Menu.buildFromTemplate([{ label: '打开 MCC AI 工具平台', click: showWindow }, { type: 'separator' }, { label: '退出', click: () => app.quit() }]));
+  tray.on('click', showWindow);
+}
 function setUpdate(state: AppUpdateState) { engine.appUpdate = state; engine.notify(); }
 async function checkUpdate() {
-  if (!app.isPackaged) { setUpdate({ status: 'disabled', progress: 0, message: '开发模式不安装应用更新，请使用安装版验证' }); return; }
+  if (!app.isPackaged) { setUpdate({ status: 'disabled', progress: 0, message: '' }); return; }
   if (!engine.serverUrl) return;
   if (updateCheck || ['downloading', 'ready'].includes(engine.appUpdate.status)) return;
   updateCheck = true;
@@ -69,6 +87,11 @@ function registerIpc() {
     return snapshot;
   });
   handle('hub:refresh', () => engine.refresh());
+  handle('hub:launch-at-login', async value => {
+    if (typeof value !== 'boolean') throw new Error('无效的请求参数');
+    const snapshot = await engine.setLaunchAtLogin(value); applyLaunchAtLogin(); return snapshot;
+  });
+  handle('hub:auto-update-skills', value => { if (typeof value !== 'boolean') throw new Error('无效的请求参数'); return engine.setAutoUpdateSkills(value); });
   handle('hub:detail', value => engine.detail(stringArg(value)));
   handle('hub:install', value => engine.install(stringArg(value)));
   handle('hub:uninstall', value => engine.uninstall(stringArg(value)));
@@ -77,7 +100,12 @@ function registerIpc() {
     if (engine.appUpdate.status !== 'ready') throw new Error('新版尚未下载完成');
     await engine.prepareToQuit(); quitRequested = true; autoUpdater.quitAndInstall(true, true);
   });
-  handle('hub:open-admin', async () => { if (!engine.serverUrl) throw new Error('请先连接服务器'); await shell.openExternal(`${engine.serverUrl}/admin`); });
+  handle('hub:open-admin', async () => {
+    // In development the admin runs locally (npm run dev:server), so open it via localhost instead of the LAN address.
+    if (!app.isPackaged) { await shell.openExternal('http://localhost:3000/admin'); return; }
+    if (!engine.serverUrl) throw new Error('请先连接服务器');
+    await shell.openExternal(`${engine.serverUrl}/admin`);
+  });
   handle('hub:open-folder', async () => { const error = await shell.openPath(engine.installRoot); if (error) throw new Error(error); });
 }
 
@@ -100,7 +128,9 @@ async function createWindow() {
     headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-src 'none'");
     return new Response(request.method === 'HEAD' ? null : response.body, { status: response.status, headers });
   });
-  window = new BrowserWindow({ width: 1250, height: 830, minWidth: 980, minHeight: 650, title: 'AI Hub', icon: path.join(app.getAppPath(), 'out/icon.png'), backgroundColor: '#f4f5f2', autoHideMenuBar: true, show: process.env.AI_HUB_HEADLESS !== '1', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: process.env.AI_HUB_HEADLESS !== '1' } });
+  window = new BrowserWindow({ width: 1250, height: 830, minWidth: 980, minHeight: 650, title: `MCC AI 工具平台 ${formatAppVersion(app.getVersion())}`, icon: path.join(app.getAppPath(), 'out/icon.png'), backgroundColor: '#f4f5f2', autoHideMenuBar: true, show: process.env.AI_HUB_HEADLESS !== '1' && !startHidden, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: process.env.AI_HUB_HEADLESS !== '1' } });
+  // Keep the versioned title instead of the page's <title>.
+  window.on('page-title-updated', event => event.preventDefault());
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event, target) => {
     const expected = devUrl ? new URL(devUrl).origin : 'aihub://app';
@@ -111,24 +141,27 @@ async function createWindow() {
   });
   window.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
   window.webContents.on('did-finish-load', () => engine.notify());
+  // Closing the window hides it to the tray; only an explicit quit (tray menu, update install) exits.
+  window.on('close', event => { if (tray && !quitting && !quitRequested) { event.preventDefault(); window?.hide(); } });
   window.on('closed', () => { window = null; });
   await window.loadURL(devUrl ?? 'aihub://app/');
 }
 
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
-  app.on('second-instance', () => { window?.show(); window?.focus(); });
+  app.on('second-instance', showWindow);
   app.whenReady().then(async () => {
     app.setAppUserModelId('com.aihub.desktop');
     log.initialize();
     const home = process.env.AI_HUB_TEST_MODE === '1' && process.env.AI_HUB_TEST_HOME ? path.resolve(process.env.AI_HUB_TEST_HOME) : app.getPath('home');
     engine = new SkillEngine(app.getPath('userData'), home, app.getVersion());
     await engine.init(); engine.onChange(() => { broadcast().catch(error => log.error(error)); });
-    setupUpdater(); registerIpc(); await createWindow();
+    applyLaunchAtLogin(); setupUpdater(); registerIpc(); createTray(); await createWindow();
     engine.refresh().catch(error => log.warn('目录同步失败', error));
     checkUpdate().catch(error => log.warn(error));
   }).catch(error => { log.error(error); if (process.env.AI_HUB_HEADLESS !== '1') dialog.showErrorBox('AI Hub 无法启动', errorMessage(error)); app.exit(1); });
   app.on('before-quit', event => {
+    quitting = true;
     if (!quitRequested && engine?.busy) { event.preventDefault(); engine.prepareToQuit().then(() => { quitRequested = true; app.quit(); }); }
   });
   app.on('window-all-closed', () => app.quit());

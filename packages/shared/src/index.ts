@@ -8,8 +8,8 @@ export interface SkillVersion {
   createdAt: string; publishedAt: string | null;
 }
 export interface Skill {
-  id: string; name: string; displayName: string; description: string; category: string;
-  tags: string[]; status: 'active' | 'archived'; latestVersion: SkillVersion | null;
+  id: string; name: string; displayName: string; description: string;
+  status: 'active' | 'archived'; latestVersion: SkillVersion | null;
   createdAt: string; updatedAt: string;
 }
 export interface SkillDetail extends Skill { versions: SkillVersion[] }
@@ -32,12 +32,14 @@ export interface AppUpdateState {
 export interface DesktopSnapshot {
   serverUrl: string; connected: boolean; connectionMessage: string; appVersion: string;
   installRoot: string; skills: Skill[]; localSkills: LocalSkill[]; tasks: TaskStatus[];
-  appUpdate: AppUpdateState; busy: boolean;
+  appUpdate: AppUpdateState; busy: boolean; autoUpdateSkills: boolean; launchAtLogin: boolean;
 }
 export interface DesktopBridge {
   snapshot(): Promise<DesktopSnapshot>;
   connect(url: string): Promise<DesktopSnapshot>;
   refresh(): Promise<void>;
+  setAutoUpdateSkills(enabled: boolean): Promise<DesktopSnapshot>;
+  setLaunchAtLogin(enabled: boolean): Promise<DesktopSnapshot>;
   detail(id: string): Promise<SkillDetail>;
   install(id: string): Promise<void>;
   uninstall(name: string): Promise<void>;
@@ -57,6 +59,11 @@ export function validateSkillName(name: unknown): asserts name is string {
   if (typeof name !== 'string' || !/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(name) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(name)) {
     throw new Error('Skill 名称必须是 1–64 位小写字母、数字或连字符，且不能使用 Windows 保留名称');
   }
+}
+// Desktop releases use semver YY.M.D internally (electron-builder/updater need semver) and display as vYYMMDD.
+export function formatAppVersion(version: string): string {
+  const date = /^(\d{2})\.(\d{1,2})\.(\d{1,2})$/.exec(version);
+  return date ? `v${date[1]}${date[2].padStart(2, '0')}${date[3].padStart(2, '0')}` : `v${version}`;
 }
 export function normalizeServerUrl(input: string): string {
   const url = new URL(input.trim());

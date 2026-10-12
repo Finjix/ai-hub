@@ -8,8 +8,11 @@ import type { AppUpdateState, DesktopSnapshot, HealthResponse, InstalledSkill, L
 import { isNewerVersion, isValidVersion, MAX_ZIP_BYTES, normalizeServerUrl, validateSkillName } from '@ai-hub/shared';
 import { extractSkillZip, sha256File } from '@ai-hub/shared/archive';
 
-interface DiskState { serverUrl: string; serverId: string; skills: Skill[]; installed: InstalledSkill[]; tasks: TaskStatus[] }
+interface DiskState { serverUrl: string; serverId: string; skills: Skill[]; installed: InstalledSkill[]; tasks: TaskStatus[]; autoUpdateSkills?: boolean; launchAtLogin?: boolean }
 interface Journal { txId: string; name: string; hadTarget: boolean; previous: InstalledSkill | null; phase: 'prepared' | 'committed' }
+const DEFAULT_SERVER_URL = 'http://10.9.168.24:3000';
+// Network-level failures (refused, DNS, timeout) surface as an opaque "fetch failed"; show a readable message instead.
+const request = (url: string | URL, init: RequestInit) => fetch(url, init).catch(() => { throw new Error('无法连接服务器'); });
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 async function exists(file: string) { try { await lstat(file); return true; } catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') return false; throw e; } }
 
@@ -67,6 +70,7 @@ export class SkillEngine {
       for (const entry of data.installed) { validateSkillName(entry.name); if (!isValidVersion(entry.version)) throw new Error('安装版本记录损坏'); }
       this.state = data;
     } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+    if (!this.state.serverUrl) this.state.serverUrl = DEFAULT_SERVER_URL;
     await this.recover();
     this.state.tasks = this.state.tasks.slice(0, 100).map(task => ['queued', 'running'].includes(task.status) ? { ...task, status: 'failed', message: '上次操作被中断，请重新尝试' } : task);
     const installed: InstalledSkill[] = [];
@@ -138,11 +142,11 @@ export class SkillEngine {
         localSkills.push({ name: entry.name, description, path: directory, managed });
       } catch { if (managed) localSkills.push({ name: entry.name, description: '技能文件缺失，请重新安装', path: directory, managed }); }
     }
-    return structuredClone({ serverUrl: this.state.serverUrl, connected: this.connected, connectionMessage: this.connectionMessage, appVersion: this.appVersion, installRoot: this.installRoot, skills: this.state.skills, localSkills, tasks: this.state.tasks, appUpdate: this.appUpdate, busy: this.busy });
+    return structuredClone({ serverUrl: this.state.serverUrl, connected: this.connected, connectionMessage: this.connectionMessage, appVersion: this.appVersion, installRoot: this.installRoot, skills: this.state.skills, localSkills, tasks: this.state.tasks, appUpdate: this.appUpdate, busy: this.busy, autoUpdateSkills: this.state.autoUpdateSkills !== false, launchAtLogin: this.launchAtLogin });
   }
 
   private async json<T>(serverUrl: string, route: string): Promise<T> {
-    const response = await fetch(`${serverUrl}${route}`, { signal: AbortSignal.timeout(25000), redirect: 'error' });
+    const response = await request(`${serverUrl}${route}`, { signal: AbortSignal.timeout(25000), redirect: 'error' });
     const reader = response.body?.getReader();
     if (!reader) throw new Error('服务器响应为空');
     let length = 0; const chunks: Uint8Array[] = [];
@@ -157,11 +161,33 @@ export class SkillEngine {
   async connect(input: string) {
     if (this.busy) throw new Error('请等待当前技能操作完成后切换服务器');
     const serverUrl = normalizeServerUrl(input);
-    const health = await this.json<HealthResponse>(serverUrl, '/api/v1/health');
-    if (health.ok !== true || typeof health.serverId !== 'string') throw new Error('地址不是有效的 AI Hub 服务器');
-    this.state.serverUrl = serverUrl; this.state.serverId = health.serverId; this.state.skills = [];
+    // Keep the new address even if it is unreachable, so the user's setting survives and later refreshes retry it.
+    if (serverUrl !== this.state.serverUrl) { this.state.serverUrl = serverUrl; this.state.serverId = ''; this.state.skills = []; }
+    this.connected = false; this.connectionMessage = '未连接服务器';
+    await this.save(); this.notify();
+    let health: HealthResponse;
+    try {
+      health = await this.json<HealthResponse>(serverUrl, '/api/v1/health');
+      if (health.ok !== true || typeof health.serverId !== 'string') throw new Error('地址不是有效的 AI Hub 服务器');
+    } catch (error) { this.connectionMessage = '连接失败，请检查服务器 IP'; this.notify(); throw error; }
+    this.state.serverId = health.serverId;
     this.connected = true; this.connectionMessage = '服务器已连接';
     await this.save(); await this.refresh();
+    return this.snapshot();
+  }
+
+  // Defaults to on; the OS login item itself is applied by the main process.
+  get launchAtLogin() { return this.state.launchAtLogin !== false; }
+
+  async setLaunchAtLogin(enabled: boolean) {
+    this.state.launchAtLogin = enabled;
+    await this.save(); this.notify();
+    return this.snapshot();
+  }
+
+  async setAutoUpdateSkills(enabled: boolean) {
+    this.state.autoUpdateSkills = enabled;
+    await this.save(); this.notify();
     return this.snapshot();
   }
 
@@ -171,10 +197,10 @@ export class SkillEngine {
       try {
         const result = await this.json<SkillListResponse>(this.state.serverUrl, '/api/v1/skills');
         if (typeof result.serverId !== 'string' || !Array.isArray(result.skills)) throw new Error('目录响应格式不正确');
-        for (const skill of result.skills) { validateSkillName(skill.name); if (typeof skill.id !== 'string' || !Array.isArray(skill.tags)) throw new Error('技能信息格式不正确'); }
+        for (const skill of result.skills) { validateSkillName(skill.name); if (typeof skill.id !== 'string') throw new Error('技能信息格式不正确'); }
         this.state.skills = result.skills; this.state.serverId = result.serverId;
-        this.connected = true; this.connectionMessage = '已连接 · 启动时自动更新技能';
-        for (const installed of this.state.installed) {
+        this.connected = true; this.connectionMessage = '服务器已连接';
+        if (this.state.autoUpdateSkills !== false) for (const installed of this.state.installed) {
           if (installed.serverId !== result.serverId) continue;
           const skill = result.skills.find(item => item.id === installed.skillId && item.name === installed.name);
           if (skill?.latestVersion && isNewerVersion(skill.latestVersion.version, installed.version)) this.install(skill.id).catch(() => {});
@@ -218,7 +244,7 @@ export class SkillEngine {
         const url = new URL(version.downloadPath, this.state.serverUrl);
         if (url.origin !== this.state.serverUrl || !url.pathname.startsWith('/downloads/skills/') || url.username || url.password || url.hash || url.search) throw new Error('资源下载地址不属于当前服务器');
         task.message = '正在下载'; this.notify();
-        const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(120000) });
+        const response = await request(url, { redirect: 'error', signal: AbortSignal.timeout(120000) });
         if (!response.ok || !response.body) throw new Error(`下载失败 (${response.status})`);
         let downloaded = 0;
         const counter = new Transform({ transform: (chunk: Buffer, _encoding, callback) => {

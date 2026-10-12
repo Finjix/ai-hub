@@ -115,12 +115,3 @@ export function getStore(): Store {
   globalThis.__aiHubStore = store;
   return store;
 }
-
-export function parseTags(value: string): string[] {
-  try {
-    const parsed: unknown = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed.filter((tag): tag is string => typeof tag === "string") : [];
-  } catch {
-    return [];
-  }
-}

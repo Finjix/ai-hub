@@ -8,7 +8,9 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
     const query = request.nextUrl.searchParams;
-    return NextResponse.json(listSkills({ q: query.get("q") ?? "", category: query.get("category") ?? "" }));
+    // Desktop clients up to v0.1.1 reject skills without a tags array, so keep an empty one for them.
+    const result = listSkills({ q: query.get("q") ?? "" });
+    return NextResponse.json({ ...result, skills: result.skills.map((skill) => ({ ...skill, tags: [] })) });
   } catch (error) {
     return jsonError(error);
   }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getStore, type SkillRow } from "@/lib/db";
-import { HttpError, jsonError, parseTagsInput, requireSameOrigin } from "@/lib/http";
+import { HttpError, jsonError, requireSameOrigin } from "@/lib/http";
 import { getSkill, isValidSkillId } from "@/lib/skills";
 
 export const runtime = "nodejs";
@@ -34,12 +34,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const input = body as Record<string, unknown>;
     const displayName = input.displayName === undefined ? row.display_name : textField(input.displayName, "展示名称", 120);
     const description = input.description === undefined ? row.description : textField(input.description, "简介", 2000, true);
-    const category = input.category === undefined ? row.category : textField(input.category, "分类", 80);
-    const tags = input.tags === undefined ? JSON.parse(row.tags_json) as string[] : parseTagsInput(input.tags);
     const status = input.status === undefined ? row.status : input.status;
     if (status !== "active" && status !== "archived") throw new HttpError(400, "技能状态只能是 active 或 archived。");
-    db.prepare("UPDATE skills SET display_name=?,description=?,category=?,tags_json=?,status=?,updated_at=? WHERE id=?")
-      .run(displayName, description, category, JSON.stringify(tags), status, new Date().toISOString(), id);
+    db.prepare("UPDATE skills SET display_name=?,description=?,status=?,updated_at=? WHERE id=?")
+      .run(displayName, description, status, new Date().toISOString(), id);
     const result = getSkill(id, true);
     return NextResponse.json(result);
   } catch (error) {

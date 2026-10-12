@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { formatAppVersion } from "@ai-hub/shared";
 import type { Skill, SkillDetail, SkillVersion } from "@ai-hub/shared";
 
 type Release = { id: string; version: string; createdAt: string; active: boolean; files: string[] };
@@ -34,7 +35,7 @@ function Icon({ name, size = 18 }: { name: "box" | "download" | "search" | "plus
 }
 
 function Mark() {
-  return <svg className="mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#2A2A2A"/><path d="M6.5 25 13.4 7h5.2l6.9 18h-4.6L16 11.6 11.1 25z" fill="#fff"/><rect x="9.6" y="18.4" width="9.4" height="3.3" fill="#3BFF93"/></svg>;
+  return <span className="mark"><img src="/brand-logo.png" alt="Century Games"/></span>;
 }
 
 function Status({ status }: { status: string }) {
@@ -63,9 +64,7 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>("skills");
   const [skills, setSkills] = useState<Skill[]>([]);
   const [releases, setReleases] = useState<Release[]>([]);
-  const [serverId, setServerId] = useState("");
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("全部分类");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [selected, setSelected] = useState<SkillDetail | null>(null);
   const [newOpen, setNewOpen] = useState(false);
@@ -73,12 +72,10 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState("");
   const [error, setError] = useState("");
-  const searchRef = useRef<HTMLInputElement>(null);
 
   const refreshSkills = useCallback(async () => {
     const response = await api<{ serverId: string; skills: Skill[] }>("/api/v1/admin/skills");
     setSkills(response.skills);
-    setServerId(response.serverId);
   }, []);
   const refreshReleases = useCallback(async () => {
     const response = await api<{ releases: Release[] }>("/api/v1/admin/releases");
@@ -93,11 +90,6 @@ export default function Home() {
   useEffect(() => { void refreshAll(); }, [refreshAll]);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setTab("skills");
-        window.setTimeout(() => searchRef.current?.focus(), 0);
-      }
       if (event.key === "Escape") { setSelected(null); setNewOpen(false); }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -105,17 +97,15 @@ export default function Home() {
   }, []);
   useEffect(() => { if (!toast) return; const timer = window.setTimeout(() => setToast(""), 4200); return () => window.clearTimeout(timer); }, [toast]);
 
-  const categories = useMemo(() => ["全部分类", ...Array.from(new Set(skills.map((skill) => skill.category).filter(Boolean))).sort((a, b) => a.localeCompare(b, "zh-CN"))], [skills]);
   const visibleSkills = useMemo(() => skills.filter((skill) => {
     const matchesStatus = statusFilter === "all" || skill.status === statusFilter;
-    const matchesCategory = category === "全部分类" || skill.category === category;
     const needle = search.trim().toLocaleLowerCase();
-    const matchesSearch = !needle || [skill.displayName, skill.name, skill.description, skill.category, ...skill.tags].join(" ").toLocaleLowerCase().includes(needle);
-    return matchesStatus && matchesCategory && matchesSearch;
-  }), [skills, statusFilter, category, search]);
+    const matchesSearch = !needle || [skill.displayName, skill.name].join(" ").toLocaleLowerCase().includes(needle);
+    return matchesStatus && matchesSearch;
+  }), [skills, statusFilter, search]);
   const activeCount = skills.filter((skill) => skill.status === "active").length;
   const statusTabs: [StatusFilter, string, number][] = [["all", "全部", skills.length], ["active", "已上架", activeCount], ["archived", "已归档", skills.length - activeCount]];
-  const filtering = !!search || category !== "全部分类" || statusFilter !== "all";
+  const filtering = !!search || statusFilter !== "all";
   const current = releases.find((release) => release.active);
 
   async function openSkill(skill: Skill) {
@@ -134,10 +124,9 @@ export default function Home() {
     event.preventDefault();
     if (!selected) return;
     const form = new FormData(event.currentTarget);
-    const tags = String(form.get("tags") || "").split(/[,，]/).map((tag) => tag.trim()).filter(Boolean);
     setBusy(true);
     try {
-      await api(`/api/v1/admin/skills/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ displayName: form.get("displayName"), description: form.get("description"), category: form.get("category"), tags, status: form.get("status") }) });
+      await api(`/api/v1/admin/skills/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ displayName: form.get("displayName"), description: form.get("description"), status: form.get("status") }) });
       await refreshSkills();
       await openSkill({ ...selected, displayName: String(form.get("displayName")) });
       setToast("已保存");
@@ -149,7 +138,6 @@ export default function Home() {
     event.preventDefault();
     const formElement = event.currentTarget;
     const data = new FormData(formElement);
-    if (data.has("tags")) data.set("tags", JSON.stringify(String(data.get("tags") || "").split(/[,，]/).map(tag => tag.trim()).filter(Boolean)));
     setBusy(true);
     try {
       const endpoint = targetId ? `/api/v1/admin/skills/${targetId}/versions` : "/api/v1/admin/skills";
@@ -186,19 +174,18 @@ export default function Home() {
       const result = await api<{ version: string }>("/api/v1/admin/releases", { method: "POST", body: form });
       formElement.reset();
       await refreshReleases();
-      setToast(`桌面端 v${result.version} 已发布`);
+      setToast(`桌面端 ${formatAppVersion(result.version)} 已发布`);
     } catch (cause) { showError(cause); }
     finally { setBusy(false); }
   }
 
   return <div className="shell">
     <aside className="rail">
-      <div className="brand"><Mark/><span>AI Hub</span><small>管理后台</small></div>
+      <div className="brand"><Mark/><div className="brand-title"><span className="brand-name">MCC AI 工具平台</span><span className="brand-by">管理后台</span></div></div>
       <nav aria-label="主导航">
-        <button className={tab === "skills" ? "nav-item active" : "nav-item"} aria-current={tab === "skills" ? "page" : undefined} onClick={() => setTab("skills")}><Icon name="box"/><span>技能库</span><em>{skills.length}</em></button>
+        <button className={tab === "skills" ? "nav-item active" : "nav-item"} aria-current={tab === "skills" ? "page" : undefined} onClick={() => setTab("skills")}><Icon name="box"/><span>技能库</span></button>
         <button className={tab === "releases" ? "nav-item active" : "nav-item"} aria-current={tab === "releases" ? "page" : undefined} onClick={() => setTab("releases")}><Icon name="download"/><span>桌面端更新</span></button>
       </nav>
-      <div className="rail-foot" title={serverId ? `服务器 ID ${serverId}` : undefined}><span className={`dot${serverId && !error ? " on" : ""}`}/>{error ? "服务不可用" : serverId ? "服务运行中" : "连接中…"}{serverId && <span className="num">{serverId.slice(0, 8)}</span>}</div>
     </aside>
 
     <main className="main">
@@ -208,26 +195,24 @@ export default function Home() {
         <header className="page-head"><h1>技能库</h1><div className="head-tools"><button className="btn btn-ink" onClick={() => setNewOpen(true)}><Icon name="plus" size={16}/>添加技能</button></div></header>
         <div className="toolbar">
           <div className="tabs" role="tablist" aria-label="上架状态">{statusTabs.map(([id, label, count]) => <button key={id} role="tab" aria-selected={statusFilter === id} className={statusFilter === id ? "selected" : ""} onClick={() => setStatusFilter(id)}>{label}<span>{loading ? "–" : count}</span></button>)}</div>
-          <select className="select" aria-label="分类" value={category} onChange={(event) => setCategory(event.target.value)}>{categories.map((item) => <option key={item}>{item}</option>)}</select>
-          <label className="search"><Icon name="search" size={16}/><input ref={searchRef} aria-label="搜索技能" placeholder="搜索名称、描述或标签" value={search} onChange={(event) => setSearch(event.target.value)}/><kbd>Ctrl K</kbd></label>
+          <label className="search"><Icon name="search" size={16}/><input aria-label="搜索技能" placeholder="搜索技能" value={search} onChange={(event) => setSearch(event.target.value)}/></label>
           <button className="btn btn-line btn-icon" aria-label="刷新" title="刷新" onClick={() => void refreshSkills()}><Icon name="refresh" size={16}/></button>
         </div>
         {loading ? <div className="empty"><span className="spinner"/></div> : visibleSkills.length ? <div className="table">
-          <div className="table-row table-head" aria-hidden="true"><span>技能</span><span>分类</span><span>线上版本</span><span>状态</span><span>更新时间</span></div>
+          <div className="table-row table-head" aria-hidden="true"><span>技能</span><span>线上版本</span><span>状态</span><span>更新时间</span></div>
           {visibleSkills.map((skill) => <button className="table-row skill-card" key={skill.id} onClick={() => void openSkill(skill)}>
             <span className="cell-name"><strong>{skill.displayName}</strong><small>{skill.name}</small></span>
-            <span className="cell-muted">{skill.category || "未分类"}</span>
             <span className={skill.latestVersion ? "num" : "cell-muted"}>{skill.latestVersion ? `v${skill.latestVersion.version}` : "未发布"}</span>
             <span><Status status={skill.status}/></span>
             <span className="cell-muted">{formatDate(skill.updatedAt)}</span>
           </button>)}
-        </div> : <div className="empty">{filtering ? <><h3>没有匹配的技能</h3><p>调整筛选条件后再试。</p></> : <><h3>还没有技能</h3><p>上传一个技能 ZIP，发布后客户端即可安装。</p><button className="btn btn-ink" onClick={() => setNewOpen(true)}><Icon name="plus" size={16}/>添加第一个技能</button></>}</div>}
+        </div> : <div className="empty">{filtering ? <><h3>没有匹配的技能</h3><p>调整筛选条件后再试。</p></> : <h3>还没有技能</h3>}</div>}
       </section> : <section className="page">
         <header className="page-head"><h1>桌面端更新</h1></header>
         <div className="release-top">
           <div className="panel current-release">
             <span className="panel-label">线上版本</span>
-            <strong className={current ? "release-version" : "release-version none"}>{current ? `v${current.version}` : "未发布"}</strong>
+            <strong className={current ? "release-version" : "release-version none"}>{current ? formatAppVersion(current.version) : "未发布"}</strong>
             <p>{current ? `发布于 ${formatDate(current.createdAt)}` : "客户端暂不会收到更新。"}</p>
             <div className="manifest"><span>更新清单</span><code>/updates/win-x64/latest.yml</code></div>
           </div>
@@ -240,7 +225,7 @@ export default function Home() {
         </div>
         <div className="section-head"><h2>发布记录</h2><span className="count">{releases.length}</span><button className="btn btn-line btn-icon" aria-label="刷新" title="刷新" onClick={() => void refreshReleases()}><Icon name="refresh" size={16}/></button></div>
         {releases.length ? <div className="list">{releases.map((release) => <div className="release-row" key={release.id}>
-          <strong className="num">v{release.version}</strong>
+          <strong className="num">{formatAppVersion(release.version)}</strong>
           {release.active ? <span className="status status-published">线上</span> : <span/>}
           <span className="cell-muted">{formatDate(release.createdAt)}</span>
           <span className="files">{release.files.map((file) => <span key={file}><Icon name="file" size={14}/>{file}</span>)}</span>
@@ -255,8 +240,7 @@ export default function Home() {
           <div className="block-head"><h3>基本信息</h3><button className="btn btn-line btn-sm" disabled={busy}>保存</button></div>
           <label className="field">展示名称<input name="displayName" defaultValue={selected.displayName} required maxLength={120}/></label>
           <label className="field">简介<textarea name="description" defaultValue={selected.description} rows={3} maxLength={2000}/></label>
-          <div className="form-row"><label className="field">分类<input name="category" defaultValue={selected.category} maxLength={80}/></label><label className="field">上架状态<select name="status" defaultValue={selected.status}><option value="active">已上架</option><option value="archived">已归档</option></select></label></div>
-          <label className="field">标签<input name="tags" defaultValue={selected.tags.join(", ")} placeholder="用逗号分隔，如 写作, 效率"/></label>
+          <label className="field">上架状态<select name="status" defaultValue={selected.status}><option value="active">已上架</option><option value="archived">已归档</option></select></label>
         </form>
         <section className="form-block">
           <div className="block-head"><h3>版本<span className="count">{selected.versions.length}</span></h3></div>
@@ -281,9 +265,8 @@ export default function Home() {
       <header className="modal-head"><h2>添加技能</h2><button className="icon-btn" aria-label="关闭" onClick={() => setNewOpen(false)}><Icon name="close"/></button></header>
       <form className="modal-form" onSubmit={(event) => void uploadSkill(event)}>
         <div className="field">技能包<FileField name="file" accept=".zip" label="选择包含 SKILL.md 的 ZIP（最大 100 MiB）"/></div>
-        <div className="form-row"><label className="field">初始版本<input name="version" placeholder="如 1.0.0" required/></label><label className="field">分类<input name="category" list="category-options" placeholder="如 开发工具"/><datalist id="category-options">{categories.slice(1).map((item) => <option key={item} value={item}/>)}</datalist></label></div>
+        <label className="field">初始版本<input name="version" placeholder="如 1.0.0" required/></label>
         <label className="field">展示名称<input name="displayName" placeholder="留空则使用 SKILL.md 中的名称"/></label>
-        <label className="field">标签<input name="tags" placeholder="用逗号分隔，如 写作, 效率"/></label>
         <label className="field">更新说明<textarea name="changelog" rows={2}/></label>
         <div className="modal-foot"><span className="muted">上传后为草稿，发布后客户端可见。</span><button className="btn btn-ink" disabled={busy}>{busy ? <><span className="spinner sm"/>上传中…</> : "添加技能"}</button></div>
       </form>

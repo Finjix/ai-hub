@@ -44,7 +44,7 @@ async function zipFor(version) {
   const chunks = []; for await (const chunk of zip.outputStream) chunks.push(Buffer.from(chunk)); return Buffer.concat(chunks);
 }
 async function upload(version, route = '/api/v1/admin/skills') {
-  const form = new FormData(); form.set('file', new File([await zipFor(version)], 'skill.zip')); form.set('version', version); form.set('displayName', '生命周期验证'); form.set('category', '测试'); form.set('tags', '["验证"]');
+  const form = new FormData(); form.set('file', new File([await zipFor(version)], 'skill.zip')); form.set('version', version); form.set('displayName', '生命周期验证');
   return request(route, { method: 'POST', body: form }, 201);
 }
 try {

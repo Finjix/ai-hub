@@ -3,7 +3,7 @@ import { rm } from "node:fs/promises";
 import { NextResponse } from "next/server";
 import { isNewerVersion } from "@ai-hub/shared";
 import { getStore, type SkillRow, type VersionRow } from "@/lib/db";
-import { boundedFormData, HttpError, jsonError, optionalText, parseTagsInput, requireSameOrigin, requiredText } from "@/lib/http";
+import { boundedFormData, HttpError, jsonError, optionalText, requireSameOrigin, requiredText } from "@/lib/http";
 import { listSkills } from "@/lib/skills";
 import { assertVersion, inspectUpload, persistArchive, removeTemp } from "@/lib/zip-upload";
 
@@ -29,9 +29,6 @@ export async function POST(request: Request) {
     const version = requiredText(form.get("version"), "版本号", 100);
     assertVersion(version);
     const displayName = optionalText(form.get("displayName"), 120) || upload.metadata.name;
-    const category = optionalText(form.get("category"), 80) || "其他";
-    const rawTags = form.get("tags");
-    const tags = rawTags === null || rawTags === "" ? [] : parseTagsInput(rawTags);
     const changelog = optionalText(form.get("changelog"), 4000) || "";
 
     const { db } = getStore();
@@ -50,8 +47,9 @@ export async function POST(request: Request) {
         name: upload.metadata.name,
         display_name: displayName,
         description: upload.metadata.description,
-        category,
-        tags_json: JSON.stringify(tags),
+        // Category/tags are no longer used; the legacy NOT NULL columns get neutral values.
+        category: "",
+        tags_json: "[]",
         status: "active",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),

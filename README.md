@@ -4,7 +4,7 @@ Windows 桌面 skill 分发管理应用。Next.js + TypeScript + Electron 客户
 
 ## 已实现
 
-- 中文技能广场：搜索、分类、说明、安装。
+- 中文技能广场：搜索、说明、安装。
 - 已安装管理：区分 AI Hub 和外部资源，仅卸载本应用管理的 skill。
 - 启动自动更新 skill，直接覆盖本地修改；下载校验失败或文件替换中断时保留/恢复旧版本。
 - 管理后台：ZIP 上传、元数据编辑、草稿发布、版本撤回、资源归档。
@@ -28,6 +28,8 @@ Windows 桌面 skill 分发管理应用。Next.js + TypeScript + Electron 客户
 ## 开发
 
 构建和便携服务端运行时固定为 **Windows x64 Node.js 24.21.0**。客户端自身使用 Electron 内置运行时，不依赖系统 Node.js。
+
+首次运行先执行 `npm ci`，并安装 Windows Terminal（确保 `wt.exe` 在 PATH 中），之后可双击根目录的 `start-dev.cmd`，在同一个 Windows Terminal 窗口的两个标签页中启动服务端和桌面客户端。脚本会先结束当前项目已有的开发进程及其子进程；如果 3000/3001 端口被其他程序占用，会提示退出，不会误杀其他程序。启动失败时窗口保留错误信息。也可以按下面的命令手动启动。
 
 ```powershell
 npm ci

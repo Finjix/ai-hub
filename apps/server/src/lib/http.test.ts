@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { boundedFormData, HttpError, parseTagsInput, requireSameOrigin } from "./http";
+import { boundedFormData, HttpError, requireSameOrigin } from "./http";
 
 describe("admin request guards and tag parsing", () => {
   it("allows a browser write when Origin matches the request host", () => {
@@ -19,12 +19,6 @@ describe("admin request guards and tag parsing", () => {
     try { requireSameOrigin(request); } catch (error) { thrown = error; }
     expect(thrown).toBeInstanceOf(HttpError);
     expect((thrown as HttpError).status).toBe(403);
-  });
-
-  it("normalizes labels and rejects malformed or oversized tag lists", () => {
-    expect(parseTagsInput([" 写作 ", "效率", "写作", ""])).toEqual(["写作", "效率"]);
-    expect(() => parseTagsInput("not-json")).toThrow("标签格式不正确");
-    expect(() => parseTagsInput(Array.from({ length: 31 }, (_, index) => `tag-${index}`))).toThrow("最多可添加 30 个标签");
   });
 
   it("accepts bounded multipart uploads and stops oversized streamed bodies", async () => {

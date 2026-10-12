@@ -42,7 +42,7 @@ async function zipSkill(name, version) {
   const zip = new ZipFile(); zip.addBuffer(Buffer.from(`---\nname: ${name}\ndescription: 自动化界面验证使用的技能\n---\n# 技能说明\n\n先阅读变更，再根据事实给出建议。`), `${name}/SKILL.md`); zip.addBuffer(Buffer.from(version), `${name}/version.txt`); zip.end(); const chunks = []; for await (const chunk of zip.outputStream) chunks.push(Buffer.from(chunk)); return Buffer.concat(chunks);
 }
 async function seed(name, displayName, version = '1.0.0', skillId) {
-  const form = new FormData(); form.set('file', new File([await zipSkill(name, version)], 'skill.zip')); form.set('version', version); form.set('displayName', displayName); form.set('category', '开发工具'); form.set('tags', '["代码","效率"]');
+  const form = new FormData(); form.set('file', new File([await zipSkill(name, version)], 'skill.zip')); form.set('version', version); form.set('displayName', displayName);
   const response = await fetch(`${base}/api/v1/admin/skills${skillId ? `/${skillId}/versions` : ''}`, { method: 'POST', body: form }); const data = await response.json(); assert.equal(response.status, 201, JSON.stringify(data));
   const publish = await fetch(`${base}/api/v1/admin/skills/${data.skillId}/versions/${data.versionId}/publish`, { method: 'POST' }); assert.equal(publish.status, 200); return data;
 }
@@ -77,7 +77,7 @@ try {
   await screenshot(admin, path.join(screenshotRoot, 'admin-skills.png'));
   await admin.getByRole('button', { name: '添加技能', exact: true }).click();
   const add = admin.getByRole('dialog', { name: '添加技能' }); const uiZip = path.join(temporary, 'ui-added.zip'); await writeFile(uiZip, await zipSkill('ui-uploaded', '1.0.0'));
-  await add.locator('input[type=file]').setInputFiles(uiZip); await add.locator('input[name=version]').fill('1.0.0'); await add.locator('input[name=displayName]').fill('界面上传验证'); await add.locator('input[name=tags]').fill('代码，验证'); await add.getByRole('button', { name: '添加技能', exact: true }).click();
+  await add.locator('input[type=file]').setInputFiles(uiZip); await add.locator('input[name=version]').fill('1.0.0'); await add.locator('input[name=displayName]').fill('界面上传验证'); await add.getByRole('button', { name: '添加技能', exact: true }).click();
   await add.waitFor({ state: 'hidden' }); await admin.locator('.skill-card').filter({ hasText: '界面上传验证' }).click();
   await admin.getByRole('dialog', { name: '技能详情' }).waitFor(); await admin.getByRole('button', { name: '发布', exact: true }).click();
   await wait(async () => { const list = await (await fetch(`${base}/api/v1/skills`)).json(); return list.skills.some(skill => skill.name === 'ui-uploaded'); }, 'admin UI publish');

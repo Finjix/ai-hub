@@ -15,7 +15,7 @@ async function archive(version: string) {
   const chunks: Buffer[] = []; for await (const chunk of zip.outputStream) chunks.push(Buffer.from(chunk)); payload = Buffer.concat(chunks);
   const now = new Date().toISOString();
   const latestVersion: SkillVersion = { id: randomUUID(), skillId: 'skill-1', version, status: 'published', sha256: createHash('sha256').update(payload).digest('hex'), size: payload.length, downloadPath: '/downloads/skills/skill-1/current.zip', markdown: '# Review', changelog: '', createdAt: now, publishedAt: now };
-  skill = { id: 'skill-1', name: 'review-helper', displayName: 'Review Helper', description: 'Review code', category: '开发', tags: [], status: 'active', latestVersion, createdAt: now, updatedAt: now };
+  skill = { id: 'skill-1', name: 'review-helper', displayName: 'Review Helper', description: 'Review code', status: 'active', latestVersion, createdAt: now, updatedAt: now };
 }
 beforeEach(async () => {
   root = await mkdtemp(path.join(tmpdir(), 'ai-hub-engine-')); await archive('1.0.0');

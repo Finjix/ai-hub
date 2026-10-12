@@ -4,7 +4,7 @@ import { mkdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
-import { MAX_EXPANDED_BYTES, MAX_ZIP_BYTES, isValidVersion, validateSkillName } from "@ai-hub/shared";
+import { isValidVersion, validateSkillName } from "@ai-hub/shared";
 import { inspectSkillZip, sha256File } from "@ai-hub/shared/archive";
 import { getStore } from "@/lib/db";
 import { HttpError } from "@/lib/http";
@@ -22,7 +22,6 @@ export async function inspectUpload(file: FormDataEntryValue | null): Promise<In
   }
   if (!file.name.toLowerCase().endsWith(".zip")) throw new HttpError(400, "技能包必须是 ZIP 文件。");
   if (file.size === 0) throw new HttpError(400, "ZIP 文件为空。");
-  if (file.size > MAX_ZIP_BYTES) throw new HttpError(413, "ZIP 文件不能超过 100 MiB。");
 
   const { root } = getStore();
   const tempPath = path.join(root, "tmp", `${randomUUID()}.zip`);
@@ -35,7 +34,6 @@ export async function inspectUpload(file: FormDataEntryValue | null): Promise<In
       const message = error instanceof Error ? error.message : "ZIP 格式无效";
       throw new HttpError(400, `技能包验证失败：${message.slice(0, 220)}`);
     }
-    if (metadata.totalBytes > MAX_EXPANDED_BYTES) throw new HttpError(413, "解压后的技能包不能超过 500 MiB。");
     if (typeof metadata.name !== "string" || !metadata.name.trim()) throw new HttpError(400, "SKILL.md 缺少有效的 name 字段。");
     try {
       validateSkillName(metadata.name);

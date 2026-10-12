@@ -3,7 +3,7 @@ import { rm } from "node:fs/promises";
 import { NextResponse } from "next/server";
 import { isNewerVersion } from "@ai-hub/shared";
 import { getStore, type SkillRow, type VersionRow } from "@/lib/db";
-import { boundedFormData, HttpError, jsonError, optionalText, requireSameOrigin, requiredText } from "@/lib/http";
+import { HttpError, jsonError, optionalText, requireSameOrigin, requiredText } from "@/lib/http";
 import { isValidSkillId } from "@/lib/skills";
 import { assertVersion, inspectUpload, persistArchive, removeTemp } from "@/lib/zip-upload";
 
@@ -20,7 +20,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { db } = getStore();
     const skill = db.prepare("SELECT * FROM skills WHERE id = ?").get(id) as unknown as SkillRow | undefined;
     if (!skill) throw new HttpError(404, "找不到这个技能。");
-    const form = await boundedFormData(request, 101 * 1024 * 1024, "技能上传请求不能超过 101 MiB。");
+    const form = await request.formData();
     upload = await inspectUpload(form.get("file"));
     if (upload.metadata.name.toLowerCase() !== skill.name.toLowerCase()) {
       throw new HttpError(409, `ZIP 包中的技能名称是「${upload.metadata.name}」，必须与「${skill.name}」一致。`);

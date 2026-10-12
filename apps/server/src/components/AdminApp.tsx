@@ -141,12 +141,12 @@ export default function Home() {
     setBusy(true);
     try {
       const endpoint = targetId ? `/api/v1/admin/skills/${targetId}/versions` : "/api/v1/admin/skills";
-      await api(endpoint, { method: "POST", body: data });
+      const result = await api<{ status?: string }>(endpoint, { method: "POST", body: data });
       formElement.reset();
       setNewOpen(false);
       await refreshSkills();
       if (targetId) await openSkill({ ...selected!, id: targetId });
-      setToast(targetId ? "新版本已添加为草稿" : "技能已添加，发布版本后客户端可见");
+      setToast(targetId ? "新版本已添加为草稿" : result.status === "published" ? "技能已添加并发布" : "技能已添加为草稿");
     } catch (cause) { showError(cause); }
     finally { setBusy(false); }
   }
@@ -264,11 +264,10 @@ export default function Home() {
     {newOpen && <div className="overlay center" onMouseDown={(event) => { if (event.target === event.currentTarget) setNewOpen(false); }}><section className="modal" role="dialog" aria-modal="true" aria-label="添加技能">
       <header className="modal-head"><h2>添加技能</h2><button className="icon-btn" aria-label="关闭" onClick={() => setNewOpen(false)}><Icon name="close"/></button></header>
       <form className="modal-form" onSubmit={(event) => void uploadSkill(event)}>
-        <div className="field">技能包<FileField name="file" accept=".zip" label="选择包含 SKILL.md 的 ZIP（最大 100 MiB）"/></div>
+        <div className="field">技能包<FileField name="file" accept=".zip" label="选择包含 SKILL.md 的 ZIP"/></div>
         <label className="field">初始版本<input name="version" placeholder="如 1.0.0" required/></label>
-        <label className="field">展示名称<input name="displayName" placeholder="留空则使用 SKILL.md 中的名称"/></label>
-        <label className="field">更新说明<textarea name="changelog" rows={2}/></label>
-        <div className="modal-foot"><span className="muted">上传后为草稿，发布后客户端可见。</span><button className="btn btn-ink" disabled={busy}>{busy ? <><span className="spinner sm"/>上传中…</> : "添加技能"}</button></div>
+        <label className="field">展示名称<input name="displayName" maxLength={120} required/></label>
+        <div className="modal-foot"><span/><button className="btn btn-ink" disabled={busy}>{busy ? <><span className="spinner sm"/>上传中…</> : "添加技能"}</button></div>
       </form>
     </section></div>}
     {toast && <div className="toast" role="status"><span>{toast}</span><button aria-label="关闭提示" onClick={() => setToast("")}><Icon name="close" size={15}/></button></div>}

@@ -5,7 +5,7 @@ import { mkdir, readFile, readdir, lstat, open, rename, rm } from 'node:fs/promi
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { AppUpdateState, DesktopSnapshot, HealthResponse, InstalledSkill, LocalSkill, Skill, SkillDetail, SkillListResponse, TaskStatus } from '@ai-hub/shared';
-import { isNewerVersion, isValidVersion, MAX_ZIP_BYTES, normalizeServerUrl, validateSkillName } from '@ai-hub/shared';
+import { isNewerVersion, isValidVersion, normalizeServerUrl, validateSkillName } from '@ai-hub/shared';
 import { extractSkillZip, sha256File } from '@ai-hub/shared/archive';
 
 interface DiskState { serverUrl: string; serverId: string; skills: Skill[]; installed: InstalledSkill[]; tasks: TaskStatus[]; autoUpdateSkills?: boolean; launchAtLogin?: boolean }
@@ -226,7 +226,7 @@ export class SkillEngine {
       validateSkillName(skill.name);
       if (skill.name !== listed.name) throw new Error('技能名称不一致');
       const version = skill.latestVersion;
-      if (!version || !isValidVersion(version.version) || !/^[a-f0-9]{64}$/.test(version.sha256) || !Number.isSafeInteger(version.size) || version.size < 1 || version.size > MAX_ZIP_BYTES) throw new Error('技能版本或完整性信息不正确');
+      if (!version || !isValidVersion(version.version) || !/^[a-f0-9]{64}$/.test(version.sha256) || !Number.isSafeInteger(version.size) || version.size < 1) throw new Error('技能版本或完整性信息不正确');
       const previous = this.state.installed.find(entry => entry.name === skill.name) ?? null;
       if (previous && (previous.serverId !== this.state.serverId || previous.skillId !== skill.id)) throw new Error('此名称已由其他来源的技能占用');
       if (previous && isNewerVersion(previous.version, version.version)) throw new Error('不会将已安装的技能降级');
@@ -249,7 +249,7 @@ export class SkillEngine {
         let downloaded = 0;
         const counter = new Transform({ transform: (chunk: Buffer, _encoding, callback) => {
           downloaded += chunk.length;
-          if (downloaded > version.size || downloaded > MAX_ZIP_BYTES) { callback(new Error('下载文件超过声明大小')); return; }
+          if (downloaded > version.size) { callback(new Error('下载文件超过声明大小')); return; }
           task.progress = Math.round(downloaded / version.size * 75);
           if (Date.now() - this.lastProgress > 100) { this.lastProgress = Date.now(); this.notify(); }
           callback(null, chunk);

@@ -1,7 +1,5 @@
 import semver from 'semver';
 
-export const MAX_ZIP_BYTES = 100 * 1024 * 1024;
-export const MAX_EXPANDED_BYTES = 500 * 1024 * 1024;
 export interface SkillVersion {
   id: string; skillId: string; version: string; status: 'draft' | 'published' | 'withdrawn';
   sha256: string; size: number; downloadPath: string; markdown: string; changelog: string;

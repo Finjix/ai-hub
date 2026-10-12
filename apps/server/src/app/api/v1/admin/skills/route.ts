@@ -3,7 +3,7 @@ import { rm } from "node:fs/promises";
 import { NextResponse } from "next/server";
 import { isNewerVersion } from "@ai-hub/shared";
 import { getStore, type SkillRow, type VersionRow } from "@/lib/db";
-import { boundedFormData, HttpError, jsonError, optionalText, requireSameOrigin, requiredText } from "@/lib/http";
+import { HttpError, jsonError, requireSameOrigin, requiredText } from "@/lib/http";
 import { listSkills } from "@/lib/skills";
 import { assertVersion, inspectUpload, persistArchive, removeTemp } from "@/lib/zip-upload";
 
@@ -24,12 +24,12 @@ export async function POST(request: Request) {
   let committed = false;
   try {
     requireSameOrigin(request);
-    const form = await boundedFormData(request, 101 * 1024 * 1024, "技能上传请求不能超过 101 MiB。");
+    const form = await request.formData();
     upload = await inspectUpload(form.get("file"));
     const version = requiredText(form.get("version"), "版本号", 100);
     assertVersion(version);
-    const displayName = optionalText(form.get("displayName"), 120) || upload.metadata.name;
-    const changelog = optionalText(form.get("changelog"), 4000) || "";
+    const displayName = requiredText(form.get("displayName"), "展示名称", 120);
+    const changelog = "";
 
     const { db } = getStore();
     let skill = db.prepare("SELECT * FROM skills WHERE name = ? COLLATE NOCASE").get(upload.metadata.name) as unknown as SkillRow | undefined;
@@ -40,6 +40,11 @@ export async function POST(request: Request) {
       throw new HttpError(409, `技能「${upload.metadata.name}」已经存在版本 ${version}。`);
     }
 
+    const latestPublished = currentVersionRows
+      .filter((row) => row.status === "published")
+      .reduce<string | null>((value, row) => !value || isNewerVersion(row.version, value) ? row.version : value, null);
+    // New uploads go live immediately unless that would break the published-version ordering.
+    const publish = (!skill || skill.status !== "archived") && (!latestPublished || isNewerVersion(version, latestPublished));
     const newSkill = !skill;
     if (!skill) {
       skill = {
@@ -70,8 +75,8 @@ export async function POST(request: Request) {
       }
       db.prepare(`INSERT INTO skill_versions
         (id,skill_id,version,status,sha256,size,download_path,archive_path,markdown,changelog,created_at,published_at)
-        VALUES (?,?,?,'draft',?,?,?,?,?,?,?,NULL)`).run(
-        versionId, skill.id, version, sha256, size, downloadPath, archivePath, markdown, changelog, now,
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+        versionId, skill.id, version, publish ? "published" : "draft", sha256, size, downloadPath, archivePath, markdown, changelog, now, publish ? now : null,
       );
       db.exec("COMMIT");
       committed = true;
@@ -79,7 +84,7 @@ export async function POST(request: Request) {
       try { db.exec("ROLLBACK"); } catch { /* transaction may not have started */ }
       throw error;
     }
-    return NextResponse.json({ ok: true, skillId: skill.id, versionId, version }, { status: 201 });
+    return NextResponse.json({ ok: true, skillId: skill.id, versionId, version, status: publish ? "published" : "draft" }, { status: 201 });
   } catch (error) {
     return jsonError(error);
   } finally {

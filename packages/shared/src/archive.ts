@@ -1,12 +1,12 @@
 import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, stat } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { Readable, Transform } from 'node:stream';
+import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import yauzl from 'yauzl';
 import { parse } from 'yaml';
-import { MAX_EXPANDED_BYTES, MAX_ZIP_BYTES, validateSkillName } from './index';
+import { validateSkillName } from './index';
 
 export interface SkillZipInfo { name: string; description: string; markdown: string; rootPrefix: string; filesCount: number; totalBytes: number }
 const MAX_ENTRIES = 10000;
@@ -21,8 +21,6 @@ function validateEntryName(name: string) {
 }
 
 async function walkZip(file: string, visit: (zip: yauzl.ZipFile, entry: yauzl.Entry) => Promise<void>): Promise<void> {
-  const size = (await stat(file)).size;
-  if (size > MAX_ZIP_BYTES) throw new Error('ZIP 不得超过 100 MiB');
   return new Promise((resolve, reject) => {
     yauzl.open(file, { lazyEntries: true, strictFileNames: true, validateEntrySizes: true }, (error, zip) => {
       if (error || !zip) { reject(error ?? new Error('无法读取 ZIP')); return; }
@@ -67,7 +65,6 @@ export async function inspectSkillZip(file: string): Promise<SkillZipInfo> {
     if (entry.fileName.endsWith('/')) return;
     filesCount++;
     names.push(entry.fileName);
-    if (entry.uncompressedSize > MAX_EXPANDED_BYTES || totalBytes + entry.uncompressedSize > MAX_EXPANDED_BYTES) throw new Error('解压内容不得超过 500 MiB');
     const manifest = entry.fileName === 'SKILL.md' || /^[^/]+\/SKILL\.md$/.test(entry.fileName);
     if (manifest && entry.uncompressedSize > MAX_MANIFEST) throw new Error('SKILL.md 过大');
     const chunks: Buffer[] = [];
@@ -75,7 +72,7 @@ export async function inspectSkillZip(file: string): Promise<SkillZipInfo> {
     const stream = await streamEntry(zip, entry);
     for await (const chunk of stream) {
       bytes += chunk.length; totalBytes += chunk.length;
-      if (totalBytes > MAX_EXPANDED_BYTES || (manifest && bytes > MAX_MANIFEST)) { stream.destroy?.(); throw new Error('解压内容超过限制'); }
+      if (manifest && bytes > MAX_MANIFEST) { stream.destroy?.(); throw new Error('解压内容超过限制'); }
       if (manifest) chunks.push(chunk);
     }
     if (bytes !== entry.uncompressedSize) throw new Error('ZIP 文件长度不一致');
@@ -96,7 +93,6 @@ export async function inspectSkillZip(file: string): Promise<SkillZipInfo> {
 export async function extractSkillZip(file: string, destination: string): Promise<SkillZipInfo> {
   const info = await inspectSkillZip(file);
   await mkdir(destination, { recursive: false });
-  let bytes = 0;
   await walkZip(file, async (zip, entry) => {
     if (!entry.fileName.startsWith(info.rootPrefix) || entry.fileName.endsWith('/')) return;
     const relative = entry.fileName.slice(info.rootPrefix.length);
@@ -104,11 +100,7 @@ export async function extractSkillZip(file: string, destination: string): Promis
     const safe = path.relative(destination, target);
     if (!safe || safe.startsWith('..') || path.isAbsolute(safe)) throw new Error('解压路径超出目标目录');
     await mkdir(path.dirname(target), { recursive: true });
-    const limiter = new Transform({ transform(chunk: Buffer, _encoding, callback) {
-      bytes += chunk.length;
-      callback(bytes > MAX_EXPANDED_BYTES ? new Error('解压内容超过限制') : null, chunk);
-    }});
-    await pipeline(await streamEntry(zip, entry), limiter, createWriteStream(target, { flags: 'wx' }));
+    await pipeline(await streamEntry(zip, entry), createWriteStream(target, { flags: 'wx' }));
   });
   return info;
 }

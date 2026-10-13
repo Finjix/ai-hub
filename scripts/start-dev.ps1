@@ -9,10 +9,6 @@ function Get-DevListeners {
 }
 
 try {
-    $terminal = Get-Command wt.exe -ErrorAction SilentlyContinue
-    if (-not $terminal) {
-        throw 'Windows Terminal is missing. Install Windows Terminal and ensure wt.exe is on PATH.'
-    }
     if (-not (Get-Command node.exe -ErrorAction SilentlyContinue) -or
         -not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) {
         throw 'Install Windows x64 Node.js 24.21.0 and ensure node/npm are on PATH.'
@@ -90,20 +86,13 @@ try {
         Start-Sleep -Milliseconds 300
     }
 
-    $tabs = foreach ($app in @('server', 'desktop')) {
-        $title = "AI Hub Dev - $app"
-        $command = "cd /d `"$root`" && title $title && npm run dev:$app"
-        "new-tab --title `"$title`" --suppressApplicationTitle -d `"$root`" `"$env:ComSpec`" /d /s /k `"$command`""
-    }
-    # A single Terminal invocation creates both tabs in the same new window.
-    $arguments = '-w new ' + ($tabs -join ' ; ')
-    $launch = Start-Process -FilePath $terminal.Source -WorkingDirectory $root -ArgumentList $arguments -PassThru -Wait
-    if ($launch.ExitCode -ne 0) {
-        throw "Windows Terminal failed to launch development tabs (exit code $($launch.ExitCode))."
-    }
-    Write-Host 'Started server and desktop in two tabs of one Windows Terminal window.'
+    Write-Host 'Starting server and desktop in this window. Press Ctrl+C to stop both.'
     Write-Host 'Admin: http://localhost:3000/admin'
     Write-Host 'Desktop server URL: http://127.0.0.1:3000'
+    & node.exe "$root\scripts\dev-all.mjs"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Development processes exited with code $LASTEXITCODE."
+    }
 } catch {
     Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
     exit 1

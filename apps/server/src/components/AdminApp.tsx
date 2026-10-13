@@ -40,7 +40,7 @@ function Mark() {
 }
 
 function Status({ status }: { status: string }) {
-  const labels: Record<string, string> = { active: "已上架", archived: "已归档", draft: "草稿", published: "已发布", withdrawn: "已撤回" };
+  const labels: Record<string, string> = { active: "已上架", archived: "已下架", draft: "草稿", published: "已发布", withdrawn: "已撤回" };
   return <span className={`status status-${status}`}>{labels[status] || status}</span>;
 }
 
@@ -107,7 +107,7 @@ export default function Home() {
     return matchesStatus && matchesSearch;
   }), [skills, statusFilter, search]);
   const activeCount = skills.filter((skill) => skill.status === "active").length;
-  const statusTabs: [StatusFilter, string, number][] = [["all", "全部", skills.length], ["active", "已上架", activeCount], ["archived", "已归档", skills.length - activeCount]];
+  const statusTabs: [StatusFilter, string, number][] = [["all", "全部", skills.length], ["active", "已上架", activeCount], ["archived", "已下架", skills.length - activeCount]];
   const filtering = !!search || statusFilter !== "all";
   const current = releases.find((release) => release.active);
 
@@ -129,10 +129,23 @@ export default function Home() {
     const form = new FormData(event.currentTarget);
     setBusy(true);
     try {
-      await api(`/api/v1/admin/skills/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ displayName: form.get("displayName"), description: form.get("description"), status: form.get("status") }) });
+      await api(`/api/v1/admin/skills/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ displayName: form.get("displayName"), status: form.get("status") }) });
       await refreshSkills();
       await openSkill({ ...selected, displayName: String(form.get("displayName")) });
       setToast("已保存");
+    } catch (cause) { showError(cause); }
+    finally { setBusy(false); }
+  }
+
+  async function deleteSkill() {
+    if (!selected) return;
+    if (!window.confirm(`确定删除技能「${selected.displayName}」吗？所有版本和技能包将被永久删除，无法恢复。`)) return;
+    setBusy(true);
+    try {
+      await api(`/api/v1/admin/skills/${selected.id}`, { method: "DELETE" });
+      setSelected(null);
+      await refreshSkills();
+      setToast("技能已删除");
     } catch (cause) { showError(cause); }
     finally { setBusy(false); }
   }
@@ -177,7 +190,7 @@ export default function Home() {
       await api(`/api/v1/admin/skills/${selected.id}/versions/${version.id}/${action}`, { method: "POST" });
       await refreshSkills();
       await openSkill(selected);
-      setToast(action === "publish" ? `v${version.version} 已发布` : `v${version.version} 已撤回`);
+      setToast(action === "publish" ? `${version.version} 已发布` : `${version.version} 已撤回`);
     } catch (cause) { showError(cause); }
     finally { setBusy(false); }
   }
@@ -222,7 +235,7 @@ export default function Home() {
           <div className="table-row table-head" aria-hidden="true"><span>技能</span><span>线上版本</span><span>状态</span><span>更新时间</span></div>
           {visibleSkills.map((skill) => <button className="table-row skill-card" key={skill.id} onClick={() => void openSkill(skill)}>
             <span className="cell-name"><strong>{skill.displayName}</strong><small>{skill.name}</small></span>
-            <span className={skill.latestVersion ? "num" : "cell-muted"}>{skill.latestVersion ? `v${skill.latestVersion.version}` : "未发布"}</span>
+            <span className={skill.latestVersion ? "num" : "cell-muted"}>{skill.latestVersion ? `${skill.latestVersion.version}` : "未发布"}</span>
             <span><Status status={skill.status}/></span>
             <span className="cell-muted">{formatDate(skill.updatedAt)}</span>
           </button>)}
@@ -259,13 +272,12 @@ export default function Home() {
         <form className="form-block" onSubmit={saveMetadata}>
           <div className="block-head"><h3>基本信息</h3><div className="block-tools"><button type="button" className="btn btn-line btn-sm" onClick={editIntroduction}>编辑介绍</button><button className="btn btn-line btn-sm" disabled={busy}>保存</button></div></div>
           <label className="field">展示名称<input name="displayName" defaultValue={selected.displayName} required maxLength={120}/></label>
-          <label className="field">简介<textarea name="description" defaultValue={selected.description} rows={3} maxLength={2000}/></label>
-          <label className="field">上架状态<select name="status" defaultValue={selected.status}><option value="active">已上架</option><option value="archived">已归档</option></select></label>
+          <label className="field">上架状态<select name="status" defaultValue={selected.status}><option value="active">已上架</option><option value="archived">已下架</option></select></label>
         </form>
         <section className="form-block">
           <div className="block-head"><h3>版本<span className="count">{selected.versions.length}</span></h3></div>
           {selected.versions.length ? <ol className="versions">{selected.versions.map((version) => <li className={`version version-${version.status}`} key={version.id}>
-            <div className="version-main"><div className="version-line"><strong className="num">v{version.version}</strong><Status status={version.status}/></div><small>{version.status === "published" ? `发布于 ${formatDate(version.publishedAt || version.createdAt)}` : `创建于 ${formatDate(version.createdAt)}`}</small>{version.changelog && <p>{version.changelog}</p>}</div>
+            <div className="version-main"><div className="version-line"><strong className="num">{version.version}</strong><Status status={version.status}/></div><small>{version.status === "published" ? `发布于 ${formatDate(version.publishedAt || version.createdAt)}` : `创建于 ${formatDate(version.createdAt)}`}</small>{version.changelog && <p>{version.changelog}</p>}</div>
             {version.status === "draft" && <button className="btn btn-green btn-sm" disabled={busy || selected.status === "archived"} onClick={() => void changeVersion(version, "publish")}>发布</button>}
             {version.status === "published" && <button className="btn btn-line btn-sm" disabled={busy} onClick={() => void changeVersion(version, "withdraw")}>撤回</button>}
           </li>)}</ol> : <p className="muted">还没有版本。</p>}
@@ -277,7 +289,7 @@ export default function Home() {
           <p className="muted">ZIP 内 SKILL.md 的 name 须为 <code>{selected.name}</code>，上传后为草稿。</p>
           <button className="btn btn-ink" disabled={busy}>{busy ? "上传中…" : "添加为草稿"}</button>
         </form>
-        <footer className="drawer-foot"><span>创建于 {formatDate(selected.createdAt)}</span><span>更新于 {formatDate(selected.updatedAt)}</span></footer>
+        <footer className="drawer-foot"><span>创建于 {formatDate(selected.createdAt)}</span><span>更新于 {formatDate(selected.updatedAt)}</span><button className="btn btn-danger btn-sm" disabled={busy} onClick={() => void deleteSkill()}>删除技能</button></footer>
       </div>
     </section></div>}
 

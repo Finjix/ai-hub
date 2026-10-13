@@ -54,7 +54,8 @@ export async function POST(request: Request) {
         id: randomUUID(),
         name: upload.metadata.name,
         display_name: displayName,
-        description: upload.metadata.description,
+        // The summary is derived from the introduction; the legacy NOT NULL column stays empty.
+        description: "",
         // Category/tags are no longer used; the legacy NOT NULL columns get neutral values.
         category: "",
         tags_json: "[]",

@@ -1,3 +1,5 @@
+import { rm } from "node:fs/promises";
+import path from "node:path";
 import { NextResponse } from "next/server";
 import { getStore, type SkillRow } from "@/lib/db";
 import { HttpError, jsonError, requireSameOrigin } from "@/lib/http";
@@ -33,14 +35,28 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new HttpError(400, "请求内容格式不正确。");
     const input = body as Record<string, unknown>;
     const displayName = input.displayName === undefined ? row.display_name : textField(input.displayName, "展示名称", 120);
-    const description = input.description === undefined ? row.description : textField(input.description, "简介", 2000, true);
     const introduction = input.introduction === undefined ? row.introduction : textField(input.introduction, "技能介绍", 200_000, true);
     const status = input.status === undefined ? row.status : input.status;
     if (status !== "active" && status !== "archived") throw new HttpError(400, "技能状态只能是 active 或 archived。");
-    db.prepare("UPDATE skills SET display_name=?,description=?,introduction=?,status=?,updated_at=? WHERE id=?")
-      .run(displayName, description, introduction, status, new Date().toISOString(), id);
+    db.prepare("UPDATE skills SET display_name=?,introduction=?,status=?,updated_at=? WHERE id=?")
+      .run(displayName, introduction, status, new Date().toISOString(), id);
     const result = getSkill(id, true);
     return NextResponse.json(result);
+  } catch (error) {
+    return jsonError(error);
+  }
+}
+
+export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+  try {
+    requireSameOrigin(request);
+    const id = await readId(context);
+    const { db, root } = getStore();
+    // Versions cascade with the skill row; their ZIPs live together under skills/<id>.
+    const result = db.prepare("DELETE FROM skills WHERE id = ?").run(id);
+    if (!result.changes) throw new HttpError(404, "找不到这个技能。");
+    await rm(path.join(root, "skills", id), { recursive: true, force: true }).catch(() => undefined);
+    return NextResponse.json({ ok: true });
   } catch (error) {
     return jsonError(error);
   }

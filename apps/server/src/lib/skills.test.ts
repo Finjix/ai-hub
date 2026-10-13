@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getStore } from "./db";
-import { getSkill, listSkills } from "./skills";
+import { getSkill, introductionSummary, listSkills } from "./skills";
 
 describe("skill search", () => {
   const previousDataDir = process.env.AI_HUB_DATA_DIR;
@@ -41,5 +41,13 @@ describe("skill search", () => {
     expect(getSkill(id, true)?.skill.introduction).toBe("");
     store.db.prepare("UPDATE skills SET introduction=? WHERE id=?").run('<h2>介绍</h2><img src="/media/x.png">', id);
     expect(getSkill(id, true)?.skill.introduction).toBe('<h2>介绍</h2><img src="/media/x.png">');
+  });
+});
+
+describe("introduction summary", () => {
+  it("keeps the opening text of the rich-text introduction", () => {
+    expect(introductionSummary('<p>帮你<strong>审查</strong>代码&amp;变更</p><p><img src="/media/a.png"></p><ul><li>第一步</li></ul>')).toBe("帮你审查代码&变更 第一步");
+    expect(introductionSummary("")).toBe("");
+    expect(introductionSummary(`<p>${"字".repeat(300)}</p>`)).toBe(`${"字".repeat(200)}…`);
   });
 });

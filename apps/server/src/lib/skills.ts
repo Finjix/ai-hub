@@ -18,12 +18,28 @@ function toVersion(row: VersionRow): SkillVersion {
   };
 }
 
+const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", nbsp: " " };
+const SUMMARY_MAX = 200;
+
+// The skill plaza shows the opening text of the rich-text introduction as each skill's summary.
+export function introductionSummary(html: string): string {
+  const text = html
+    .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    // Block boundaries become spaces; inline tags vanish so <strong> etc. don't split CJK words.
+    .replace(/<\/?(p|div|li|ul|ol|h[1-6]|br|hr|blockquote|pre|table|tr|td|th|img|video)\b[^>]*>/gi, " ")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&(amp|lt|gt|quot|#39|nbsp);/g, (_, name: string) => ENTITIES[name])
+    .replace(/\s+/g, " ")
+    .trim();
+  return text.length > SUMMARY_MAX ? `${text.slice(0, SUMMARY_MAX)}…` : text;
+}
+
 function skillBase(row: SkillRow, latestVersion: SkillVersion | null): Skill {
   return {
     id: row.id,
     name: row.name,
     displayName: row.display_name,
-    description: row.description,
+    description: introductionSummary(row.introduction),
     status: row.status,
     latestVersion,
     createdAt: row.created_at,
@@ -51,7 +67,7 @@ export function listSkills({ q = "", admin = false }: { q?: string; admin?: bool
   const args: string[] = [];
   if (!admin) conditions.push("status = 'active'");
   if (q.trim()) {
-    conditions.push("(name LIKE ? ESCAPE '\\' OR display_name LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\')");
+    conditions.push("(name LIKE ? ESCAPE '\\' OR display_name LIKE ? ESCAPE '\\' OR introduction LIKE ? ESCAPE '\\')");
     const like = `%${q.trim().replace(/[\\%_]/g, "\\$&")}%`;
     args.push(like, like, like);
   }

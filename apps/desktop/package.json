@@ -1,6 +1,6 @@
 {
   "name": "@ai-hub/desktop",
-  "version": "26.10.12",
+  "version": "0.0.1",
   "private": true,
   "description": "AI Hub Windows skill manager",
   "author": "AI Hub",

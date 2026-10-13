@@ -18,7 +18,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const skill = db.prepare("SELECT * FROM skills WHERE id=?").get(id) as unknown as SkillRow | undefined;
       const version = db.prepare("SELECT * FROM skill_versions WHERE id=? AND skill_id=?").get(versionId, id) as unknown as VersionRow | undefined;
       if (!skill || !version) throw new HttpError(404, "找不到这个版本。");
-      if (skill.status === "archived") throw new HttpError(409, "请先恢复已归档的技能，再发布新版本。");
+      if (skill.status === "archived") throw new HttpError(409, "请先将技能重新上架，再发布新版本。");
       if (version.status !== "draft") throw new HttpError(409, "只有草稿版本可以发布。");
       const existing = db.prepare("SELECT version FROM skill_versions WHERE skill_id=? AND status='published'").all(id) as unknown as Array<{ version: string }>;
       const latest = existing.reduce<string | null>((value, item) => !value || isNewerVersion(item.version, value) ? item.version : value, null);

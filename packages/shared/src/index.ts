@@ -58,10 +58,9 @@ export function validateSkillName(name: unknown): asserts name is string {
     throw new Error('Skill 名称必须是 1–64 位小写字母、数字或连字符，且不能使用 Windows 保留名称');
   }
 }
-// Desktop releases use semver YY.M.D internally (electron-builder/updater need semver) and display as vYYMMDD.
+// App versions are plain semver and display without a "v" prefix, e.g. 1.2.3.
 export function formatAppVersion(version: string): string {
-  const date = /^(\d{2})\.(\d{1,2})\.(\d{1,2})$/.exec(version);
-  return date ? `v${date[1]}${date[2].padStart(2, '0')}${date[3].padStart(2, '0')}` : `v${version}`;
+  return version.replace(/^v/i, '');
 }
 export function normalizeServerUrl(input: string): string {
   const url = new URL(input.trim());

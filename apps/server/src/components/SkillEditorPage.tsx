@@ -111,7 +111,7 @@ export default function SkillEditorPage({ target, onClose, onSaved, onError, reg
           <h2>技能包</h2>
           <dl className="facts">
             <div><dt>技能标识</dt><dd><code>{editing.name}</code></dd></div>
-            <div><dt>线上版本</dt><dd className="num">{editing.latestVersion ? `v${editing.latestVersion.version}` : "未发布"}</dd></div>
+            <div><dt>线上版本</dt><dd className="num">{editing.latestVersion ? `${editing.latestVersion.version}` : "未发布"}</dd></div>
           </dl>
           <p className="muted">上传新版本请在技能详情中操作。</p>
         </section> : <section className="panel side-card">

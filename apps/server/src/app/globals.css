@@ -72,6 +72,8 @@ code { font: 12.5px Consolas, "Cascadia Mono", monospace; }
 .btn-green:hover:not(:disabled) { background: var(--green-press); }
 .btn-line { background: var(--surface); border: 1px solid var(--line-strong); color: var(--ink); }
 .btn-line:hover:not(:disabled) { border-color: var(--ink); }
+.btn-danger { background: var(--surface); border: 1px solid var(--line-strong); color: var(--red); }
+.btn-danger:hover:not(:disabled) { border-color: var(--red); background: var(--red-tint); }
 .icon-btn { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 6px; color: var(--ink-3); }
 .icon-btn:hover { background: var(--sunken); color: var(--ink); }
 
@@ -80,7 +82,7 @@ input:not([type=file]), textarea, select { width: 100%; padding: 7px 11px; borde
 input::placeholder, textarea::placeholder { color: var(--ink-3); }
 input:focus, textarea:focus, select:focus { border-color: var(--ink); }
 input:focus-visible, textarea:focus-visible, select:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(42, 42, 42, .12); }
-textarea { resize: vertical; }
+textarea { resize: none; }
 select { appearance: none; padding-right: 30px; background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%232a2a2a' stroke-width='1.6'%3E%3Cpath d='m3 4.5 3 3 3-3'/%3E%3C/svg%3E") right 10px center no-repeat; cursor: pointer; }
 .field { display: grid; gap: 5px; color: var(--ink-2); font-size: 13px; font-weight: 600; }
 .field input, .field textarea, .field select { color: var(--ink); font-size: 14px; font-weight: 400; }
@@ -113,7 +115,6 @@ select { appearance: none; padding-right: 30px; background: var(--surface) url("
 .table-head { padding-top: 10px; padding-bottom: 10px; background: var(--bg); color: var(--ink-3); font-size: 12px; font-weight: 600; }
 button.table-row { transition: background-color .1s; }
 button.table-row:hover { background: #fafbf8; }
-button.table-row:hover strong { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
 button.table-row:focus-visible { outline-offset: -2px; }
 .cell-name { display: grid; min-width: 0; }
 .cell-name strong { font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -193,7 +194,8 @@ button.table-row:focus-visible { outline-offset: -2px; }
 .version small { color: var(--ink-3); font-size: 12px; }
 .version p { margin-top: 4px; color: var(--ink-2); font-size: 13px; }
 .version-published { box-shadow: inset 4px 0 0 var(--green); }
-.drawer-foot { display: flex; gap: 20px; padding: 16px 24px 24px; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 12px; }
+.drawer-foot { display: flex; align-items: center; gap: 20px; padding: 16px 24px 24px; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 12px; }
+.drawer-foot .btn-danger { margin-left: auto; }
 
 /* Skill editor page */
 .editor-page .page-head { gap: 14px; }

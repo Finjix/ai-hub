@@ -90,7 +90,7 @@ export default function Home() {
   const localRow = (skill: LocalSkill) => <div className="row" key={skill.name}>
     <span className={`glyph${skill.managed ? ' is-installed' : ''}`}>{glyph(skill.managed?.displayName ?? skill.name)}</span>
     <div className="row-main"><h3>{skill.managed?.displayName ?? skill.name}</h3><p>{skill.description}</p><span className="path">{skill.path}</span></div>
-    {skill.managed && <span className="num">v{skill.managed.version}</span>}
+    {skill.managed && <span className="num">{skill.managed.version}</span>}
     {skill.managed && (activeTask(skill.managed.skillId) ? taskProgress(activeTask(skill.managed.skillId)!) : <button className="btn btn-line btn-sm" onClick={() => setRemove(skill)}>卸载</button>)}
   </div>;
 
@@ -117,14 +117,14 @@ export default function Home() {
           <div className="skill-grid">{filtered.map(skill => <article className="skill-card" key={skill.id} onClick={() => void showDetail(skill)} tabIndex={0} onKeyDown={event => { if (event.target === event.currentTarget && event.key === 'Enter') void showDetail(skill); }}>
             <div className="card-head"><span className={`glyph${isInstalled(skill) ? ' is-installed' : ''}`}>{glyph(skill.displayName)}</span><div><h3>{skill.displayName}</h3><span className="slug">{skill.name}</span></div></div>
             <p className="desc">{skill.description}</p>
-            <div className="card-foot"><span className="meta num">{skill.latestVersion ? `v${skill.latestVersion.version}` : '未发布'}</span>{installButton(skill)}</div>
+            <div className="card-foot"><span className="meta num">{skill.latestVersion ? `${skill.latestVersion.version}` : '未发布'}</span>{installButton(skill)}</div>
           </article>)}</div>
           {!filtered.length && <div className="empty">{query ? <><h3>没有匹配的技能</h3><p>换个关键词试试。</p></> : <h3>{offline ? '未连接到服务器，请检查服务器 IP 设置' : '还没有发布的技能'}</h3>}</div>}
         </>}
         {view === 'installed' && <>
           <header className="page-head"><h1>已安装</h1><span className="count">{state.localSkills.length}</span><div className="head-tools"><button className="btn btn-line" onClick={() => void action(() => window.aiHub!.openFolder())}><Icon name="folder" size={16}/>打开技能安装目录</button></div></header>
           {managed.length > 0 && <section className="group"><h2>由 AI Hub 管理{state.autoUpdateSkills && <span>启动时自动更新</span>}</h2><div className="list">{managed.map(localRow)}</div></section>}
-          {external.length > 0 && <section className="group"><h2>其他来源<span>AI Hub 不会修改或卸载</span></h2><div className="list">{external.map(localRow)}</div></section>}
+          {external.length > 0 && <section className="group"><h2>其他来源</h2><div className="list">{external.map(localRow)}</div></section>}
           {!state.localSkills.length && <div className="empty"><h3>还没有安装技能</h3></div>}
         </>}
         {view === 'settings' && <>
@@ -158,11 +158,10 @@ export default function Home() {
       <button className="dialog-close" aria-label="关闭详情" onClick={() => setDetail(null)}><Icon name="close"/></button>
       <header className="detail-head">
         <span className={`glyph lg${isInstalled(detail) ? ' is-installed' : ''}`}>{glyph(detail.displayName)}</span>
-        <div className="detail-title"><h2>{detail.displayName}</h2><div className="detail-meta"><span>{detail.name}</span><span className="num">{detail.latestVersion ? `v${detail.latestVersion.version}` : '未发布'}</span></div></div>
+        <div className="detail-title"><h2>{detail.displayName}</h2><div className="detail-meta"><span>{detail.name}</span><span className="num">{detail.latestVersion ? `${detail.latestVersion.version}` : '未发布'}</span></div></div>
         {installButton(detail)}
       </header>
-      {detail.description && <p className="detail-desc">{detail.description}</p>}
-      {detail.latestVersion?.changelog && <div className="changelog"><strong className="num">v{detail.latestVersion.version} 更新</strong><p>{detail.latestVersion.changelog}</p></div>}
+      {detail.latestVersion?.changelog && <div className="changelog"><strong className="num">{detail.latestVersion.version} 更新</strong><p>{detail.latestVersion.changelog}</p></div>}
       {detail.introduction?.trim()
         ? <div className="markdown intro" dangerouslySetInnerHTML={{ __html: renderIntroduction(detail.introduction, state.serverUrl) }}/>
         : <div className="markdown"><ReactMarkdown skipHtml>{detail.latestVersion?.markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '') ?? '暂无说明'}</ReactMarkdown></div>}

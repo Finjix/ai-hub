@@ -179,7 +179,6 @@ input:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(42, 42, 42, .12)
 .detail-title { flex: 1; min-width: 0; }
 .detail-title h2 { font: 700 22px/1.3 var(--font-display); }
 .detail-meta { display: flex; flex-wrap: wrap; gap: 14px; color: var(--ink-3); font-size: 13px; }
-.detail-desc { margin-top: 20px; color: var(--ink-2); }
 .changelog { margin-top: 20px; padding: 14px 16px; border-left: 3px solid var(--green); background: var(--bg); border-radius: 0 6px 6px 0; }
 .changelog strong { font-size: 13px; }
 .changelog p { color: var(--ink-2); font-size: 13px; }

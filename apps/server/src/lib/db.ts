@@ -4,7 +4,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 export type SkillStatus = "active" | "archived";
-export type VersionStatus = "draft" | "published" | "withdrawn";
+export type VersionStatus = "draft" | "published";
 
 export interface SkillRow {
   id: string;
@@ -29,7 +29,6 @@ export interface VersionRow {
   download_path: string;
   archive_path: string;
   markdown: string;
-  changelog: string;
   created_at: string;
   published_at: string | null;
 }
@@ -93,7 +92,6 @@ export function getStore(): Store {
       download_path TEXT NOT NULL,
       archive_path TEXT NOT NULL,
       markdown TEXT NOT NULL,
-      changelog TEXT NOT NULL,
       created_at TEXT NOT NULL,
       published_at TEXT,
       UNIQUE(skill_id, version)
@@ -113,6 +111,15 @@ export function getStore(): Store {
   if (!skillColumns.some((column) => column.name === "introduction")) {
     db.exec("ALTER TABLE skills ADD COLUMN introduction TEXT NOT NULL DEFAULT ''");
   }
+  const versionColumns = db.prepare("PRAGMA table_info(skill_versions)").all() as unknown as { name: string }[];
+  if (versionColumns.some((column) => column.name === "changelog")) {
+    db.exec("ALTER TABLE skill_versions DROP COLUMN changelog");
+  }
+  // Versions are no longer withdrawn, and only one version per skill is live: keep the latest published one.
+  db.exec(`UPDATE skill_versions SET status='draft' WHERE status='withdrawn';
+    UPDATE skill_versions SET status='draft' WHERE status='published' AND id <> (
+      SELECT v.id FROM skill_versions v WHERE v.skill_id = skill_versions.skill_id AND v.status='published'
+      ORDER BY v.published_at DESC, v.created_at DESC LIMIT 1)`);
 
   db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('server_id', ?)").run(randomUUID());
   const serverId = (db.prepare("SELECT value FROM settings WHERE key = 'server_id'").get() as { value: string }).value;

@@ -21,6 +21,10 @@ const paths: Record<string, React.ReactNode> = {
 };
 function Icon({ name, size = 18 }: { name: string; size?: number }) { return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>; }
 function Mark() { return <span className="mark"><img src="/brand-logo.png" alt="Century Games"/></span>; }
+function formatDay(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(date).replace(/\//g, '-');
+}
 function glyph(name: string) { const han = name.match(/[一-龥]/); return han ? han[0] : (name.replace(/[^a-zA-Z]/g, '').slice(0, 2) || 'S').replace(/^./, c => c.toUpperCase()); }
 // The server always listens on http port 3000, so users only enter the host.
 const hostOf = (url: string) => url.trim().replace(/^https?:\/\//i, '').replace(/[:/].*$/, '');
@@ -49,7 +53,8 @@ export default function Home() {
   useEffect(() => { if (!feedback) return; const timer = setTimeout(() => setFeedback(''), 7000); return () => clearTimeout(timer); }, [feedback]);
   useEffect(() => {
     if (!detail && !remove) return;
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') { setDetail(null); setRemove(null); } };
+    // Esc closes the confirm dialog first, then leaves the detail page.
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') { if (remove) setRemove(null); else setDetail(null); } };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [detail, remove]);
@@ -65,6 +70,7 @@ export default function Home() {
     setConnecting(false);
   };
   const showDetail = async (skill: Skill) => {
+    window.scrollTo(0, 0);
     setDetail({ ...skill, introduction: '', versions: skill.latestVersion ? [skill.latestVersion] : [] });
     if (state.connected) await action(async () => setDetail(await window.aiHub!.detail(skill.id)));
   };
@@ -81,7 +87,7 @@ export default function Home() {
     const task = activeTask(skill.id);
     if (task) return taskProgress(task);
     if (isInstalled(skill)) return <span className="installed-state"><Icon name="check" size={15}/>已安装</span>;
-    return <button className="btn btn-green btn-sm" disabled={!state.connected || !skill.latestVersion} onClick={event => { event.stopPropagation(); void action(() => window.aiHub!.install(skill.id)); }}>安装</button>;
+    return <button className="btn btn-ink btn-sm" disabled={!state.connected || !skill.latestVersion} onClick={event => { event.stopPropagation(); void action(() => window.aiHub!.install(skill.id)); }}>安装</button>;
   };
   const serverForm = () => <div className="field-row">
     <input id="server-url" aria-label="服务器 IP" disabled={!ready || connecting} placeholder="10.9.168.24" value={serverInput} onChange={event => setServerInput(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void connect(); }}/>
@@ -97,7 +103,7 @@ export default function Home() {
   return <div className="shell">
     <aside className="rail">
       <div className="brand"><Mark/><div className="brand-title"><span className="brand-name">MCC AI 工具平台</span><button className="brand-by" onClick={() => void action(() => window.aiHub!.openAdmin())}>by 薯薯</button></div></div>
-      <nav>{([['store', 'grid'], ['installed', 'box'], ['settings', 'settings']] as const).map(([id, icon]) => <button key={id} className={`nav-item${view === id ? ' active' : ''}`} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}><Icon name={icon}/><span>{titles[id]}</span>{id === 'installed' && managed.length > 0 && <em>{managed.length}</em>}</button>)}</nav>
+      <nav>{([['store', 'grid'], ['installed', 'box'], ['settings', 'settings']] as const).map(([id, icon]) => <button key={id} className={`nav-item${view === id ? ' active' : ''}`} aria-current={view === id ? 'page' : undefined} onClick={() => { setView(id); setDetail(null); }}><Icon name={icon}/><span>{titles[id]}</span>{id === 'installed' && managed.length > 0 && <em>{managed.length}</em>}</button>)}</nav>
       <div className="rail-foot">
         <button className={`rail-status${offline ? ' offline' : ''}`} onClick={() => setView('settings')} title={state.connectionMessage}><span className={`dot${state.connected ? ' on' : ''}`}/>{state.connected ? '已连接' : offline ? '未连接服务器' : '连接中…'}</button>
       </div>
@@ -106,7 +112,18 @@ export default function Home() {
       {!desktop && <div className="banner warn">当前为页面预览，安装功能需在桌面应用中使用。</div>}
       {state.appUpdate.status === 'ready' && <div className="banner"><span>AI Hub {formatAppVersion(state.appUpdate.version ?? '')} 已下载完成</span><button className="btn btn-ink btn-sm" disabled={state.busy} onClick={() => void action(() => window.aiHub!.restartForUpdate())}>重启更新</button></div>}
       <div className="page">
-        {view === 'store' && <>
+        {view === 'store' && detail && <article className="detail-page">
+          <header className="detail-head">
+            <div className="detail-title"><h1>{detail.displayName}</h1><div className="detail-meta"><span className="card-version num">{detail.latestVersion ? detail.latestVersion.version : '未发布'}</span><span className="num">{formatDay(detail.latestVersion?.publishedAt ?? detail.updatedAt)} 更新</span></div></div>
+            <div className="detail-actions"><button className="btn btn-line btn-sm" onClick={() => setDetail(null)}>返回</button>{installButton(detail)}</div>
+          </header>
+          <section className="detail-body">
+            {detail.introduction?.trim()
+              ? <div className="markdown intro" dangerouslySetInnerHTML={{ __html: renderIntroduction(detail.introduction, state.serverUrl) }}/>
+              : <div className="markdown"><ReactMarkdown skipHtml>{detail.latestVersion?.markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '') ?? '暂无说明'}</ReactMarkdown></div>}
+          </section>
+        </article>}
+        {view === 'store' && !detail && <>
           <header className="page-head">
             <h1>技能广场</h1>
             <div className="head-tools">
@@ -114,10 +131,10 @@ export default function Home() {
               <button className="btn btn-line btn-icon" aria-label="刷新技能库" title="刷新" disabled={state.busy} onClick={() => void action(() => window.aiHub!.refresh())}><Icon name="refresh" size={16}/></button>
             </div>
           </header>
-          <div className="skill-grid">{filtered.map(skill => <article className="skill-card" key={skill.id} onClick={() => void showDetail(skill)} tabIndex={0} onKeyDown={event => { if (event.target === event.currentTarget && event.key === 'Enter') void showDetail(skill); }}>
-            <div className="card-head"><span className={`glyph${isInstalled(skill) ? ' is-installed' : ''}`}>{glyph(skill.displayName)}</span><div><h3>{skill.displayName}</h3><span className="slug">{skill.name}</span></div></div>
+          <div className="skill-grid">{filtered.map(skill => <article className={`skill-card${isInstalled(skill) ? ' is-installed' : ''}`} key={skill.id} onClick={() => void showDetail(skill)} tabIndex={0} onKeyDown={event => { if (event.target === event.currentTarget && event.key === 'Enter') void showDetail(skill); }}>
+            <div className="card-head"><h3>{skill.displayName}</h3>{installButton(skill)}</div>
             <p className="desc">{skill.description}</p>
-            <div className="card-foot"><span className="meta num">{skill.latestVersion ? `${skill.latestVersion.version}` : '未发布'}</span>{installButton(skill)}</div>
+            <div className="card-foot"><span className="card-version num">{skill.latestVersion ? skill.latestVersion.version : '未发布'}</span><span className="card-time num">{formatDay(skill.latestVersion?.publishedAt ?? skill.updatedAt)} 更新</span></div>
           </article>)}</div>
           {!filtered.length && <div className="empty">{query ? <><h3>没有匹配的技能</h3><p>换个关键词试试。</p></> : <h3>{offline ? '未连接到服务器，请检查服务器 IP 设置' : '还没有发布的技能'}</h3>}</div>}
         </>}
@@ -154,18 +171,6 @@ export default function Home() {
       </div>
     </main>
     {feedback && <div className="toast" role="status"><span>{feedback}</span><button aria-label="关闭提示" onClick={() => setFeedback('')}><Icon name="close" size={15}/></button></div>}
-    {detail && <div className="backdrop" onClick={() => setDetail(null)}><section className="dialog detail" role="dialog" aria-modal="true" aria-label="技能详情" onClick={event => event.stopPropagation()}>
-      <button className="dialog-close" aria-label="关闭详情" onClick={() => setDetail(null)}><Icon name="close"/></button>
-      <header className="detail-head">
-        <span className={`glyph lg${isInstalled(detail) ? ' is-installed' : ''}`}>{glyph(detail.displayName)}</span>
-        <div className="detail-title"><h2>{detail.displayName}</h2><div className="detail-meta"><span>{detail.name}</span><span className="num">{detail.latestVersion ? `${detail.latestVersion.version}` : '未发布'}</span></div></div>
-        {installButton(detail)}
-      </header>
-      {detail.latestVersion?.changelog && <div className="changelog"><strong className="num">{detail.latestVersion.version} 更新</strong><p>{detail.latestVersion.changelog}</p></div>}
-      {detail.introduction?.trim()
-        ? <div className="markdown intro" dangerouslySetInnerHTML={{ __html: renderIntroduction(detail.introduction, state.serverUrl) }}/>
-        : <div className="markdown"><ReactMarkdown skipHtml>{detail.latestVersion?.markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '') ?? '暂无说明'}</ReactMarkdown></div>}
-    </section></div>}
     {remove && <div className="backdrop" onClick={() => setRemove(null)}><section className="dialog confirm" role="dialog" aria-modal="true" aria-label="卸载技能" onClick={event => event.stopPropagation()}>
       <h2>卸载「{remove.managed?.displayName}」？</h2>
       <p>本地文件会被删除，包括你做过的修改。</p>

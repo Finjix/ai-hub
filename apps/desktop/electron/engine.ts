@@ -5,7 +5,7 @@ import { mkdir, readFile, readdir, lstat, open, rename, rm } from 'node:fs/promi
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { AppUpdateState, DesktopSnapshot, HealthResponse, InstalledSkill, LocalSkill, Skill, SkillDetail, SkillListResponse, TaskStatus } from '@ai-hub/shared';
-import { isNewerVersion, isValidVersion, normalizeServerUrl, validateSkillName } from '@ai-hub/shared';
+import { isValidSkillVersion, normalizeServerUrl, validateSkillName } from '@ai-hub/shared';
 import { extractSkillZip, sha256File } from '@ai-hub/shared/archive';
 
 interface DiskState { serverUrl: string; serverId: string; skills: Skill[]; installed: InstalledSkill[]; tasks: TaskStatus[]; autoUpdateSkills?: boolean; launchAtLogin?: boolean }
@@ -67,7 +67,7 @@ export class SkillEngine {
       const data = JSON.parse(await readFile(this.stateFile, 'utf8')) as DiskState;
       if (!Array.isArray(data.installed) || !Array.isArray(data.tasks) || !Array.isArray(data.skills)) throw new Error('安装记录格式损坏');
       if (data.serverUrl) normalizeServerUrl(data.serverUrl);
-      for (const entry of data.installed) { validateSkillName(entry.name); if (!isValidVersion(entry.version)) throw new Error('安装版本记录损坏'); }
+      for (const entry of data.installed) { validateSkillName(entry.name); if (!isValidSkillVersion(entry.version)) throw new Error('安装版本记录损坏'); }
       this.state = data;
     } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
     if (!this.state.serverUrl) this.state.serverUrl = DEFAULT_SERVER_URL;
@@ -203,7 +203,8 @@ export class SkillEngine {
         if (this.state.autoUpdateSkills !== false) for (const installed of this.state.installed) {
           if (installed.serverId !== result.serverId) continue;
           const skill = result.skills.find(item => item.id === installed.skillId && item.name === installed.name);
-          if (skill?.latestVersion && isNewerVersion(skill.latestVersion.version, installed.version)) this.install(skill.id).catch(() => {});
+          // Follow whichever version the admin has live, including a rollback to an older one.
+          if (skill?.latestVersion && skill.latestVersion.version !== installed.version) this.install(skill.id).catch(() => {});
         }
       } catch (error) { this.connected = false; this.connectionMessage = '连接失败，正在显示上次同步的目录'; throw error; }
     });
@@ -226,10 +227,9 @@ export class SkillEngine {
       validateSkillName(skill.name);
       if (skill.name !== listed.name) throw new Error('技能名称不一致');
       const version = skill.latestVersion;
-      if (!version || !isValidVersion(version.version) || !/^[a-f0-9]{64}$/.test(version.sha256) || !Number.isSafeInteger(version.size) || version.size < 1) throw new Error('技能版本或完整性信息不正确');
+      if (!version || !isValidSkillVersion(version.version) || !/^[a-f0-9]{64}$/.test(version.sha256) || !Number.isSafeInteger(version.size) || version.size < 1) throw new Error('技能版本或完整性信息不正确');
       const previous = this.state.installed.find(entry => entry.name === skill.name) ?? null;
       if (previous && (previous.serverId !== this.state.serverId || previous.skillId !== skill.id)) throw new Error('此名称已由其他来源的技能占用');
-      if (previous && isNewerVersion(previous.version, version.version)) throw new Error('不会将已安装的技能降级');
       const target = this.target(skill.name), hadTarget = await exists(target);
       if (hadTarget) {
         const info = await lstat(target);

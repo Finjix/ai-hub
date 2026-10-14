@@ -68,8 +68,6 @@ code { font: 12.5px Consolas, "Cascadia Mono", monospace; }
 .btn-icon { width: 36px; padding: 0; }
 .btn-ink { background: var(--ink); color: #fff; }
 .btn-ink:hover:not(:disabled) { background: #000; }
-.btn-green { background: var(--green); color: var(--ink); }
-.btn-green:hover:not(:disabled) { background: var(--green-press); }
 .btn-line { background: var(--surface); border: 1px solid var(--line-strong); color: var(--ink); }
 .btn-line:hover:not(:disabled) { border-color: var(--ink); }
 .btn-danger { background: var(--surface); border: 1px solid var(--line-strong); color: var(--red); }
@@ -110,13 +108,13 @@ select { appearance: none; padding-right: 30px; background: var(--surface) url("
 
 /* Skills table */
 .table { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-.table-row { display: grid; grid-template-columns: minmax(220px, 2.2fr) 100px 90px 170px; align-items: center; gap: 16px; width: 100%; padding: 12px 18px; text-align: left; font-size: 13px; }
+.table-row { display: grid; grid-template-columns: minmax(220px, 2.2fr) 100px 90px 170px; align-items: baseline; gap: 16px; width: 100%; padding: 12px 18px; text-align: left; font-size: 13px; }
 .table-row + .table-row { border-top: 1px solid var(--line); }
 .table-head { padding-top: 10px; padding-bottom: 10px; background: var(--bg); color: var(--ink-3); font-size: 12px; font-weight: 600; }
 button.table-row { transition: background-color .1s; }
 button.table-row:hover { background: #fafbf8; }
 button.table-row:focus-visible { outline-offset: -2px; }
-.cell-name { display: grid; min-width: 0; }
+.cell-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cell-name strong { font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cell-name small { color: var(--ink-3); font: 12px var(--font-display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cell-muted { color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -171,20 +169,7 @@ button.table-row:focus-visible { outline-offset: -2px; }
 .toast button { display: flex; color: #a9aca6; }
 .toast button:hover { color: #fff; }
 
-/* Overlays */
-.overlay { position: fixed; inset: 0; z-index: 30; display: flex; justify-content: flex-end; background: rgba(30, 32, 29, .4); }
-.drawer { display: flex; flex-direction: column; width: 540px; max-width: 100%; height: 100%; background: var(--surface); box-shadow: -20px 0 50px rgba(0, 0, 0, .12); animation: slide .18s ease-out; }
-@keyframes slide { from { transform: translateX(24px); opacity: 0; } }
-.drawer-head { display: flex; align-items: center; gap: 14px; padding: 22px 24px 18px; border-bottom: 1px solid var(--line); }
-.drawer-head > div { flex: 1; min-width: 0; }
-.drawer-head h2 { font: 700 21px/1.3 var(--font-display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.drawer-head code { color: var(--ink-3); }
-.drawer-body { flex: 1; overflow: auto; }
-.form-block { display: grid; gap: 14px; padding: 22px 24px; }
-.form-block + .form-block { border-top: 1px solid var(--line); }
-.block-head { display: flex; align-items: center; justify-content: space-between; }
-.block-head h3 { display: flex; align-items: baseline; gap: 8px; font-size: 15px; font-weight: 700; }
-.form-block > .btn { justify-self: start; }
+/* Skill versions */
 .versions { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: 8px; }
 .version { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
 .version + .version { border-top: 1px solid var(--line); }
@@ -194,19 +179,32 @@ button.table-row:focus-visible { outline-offset: -2px; }
 .version small { color: var(--ink-3); font-size: 12px; }
 .version p { margin-top: 4px; color: var(--ink-2); font-size: 13px; }
 .version-published { box-shadow: inset 4px 0 0 var(--green); }
-.drawer-foot { display: flex; align-items: center; gap: 20px; padding: 16px 24px 24px; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 12px; }
-.drawer-foot .btn-danger { margin-left: auto; }
+.version-actions { display: flex; gap: 6px; }
+.btn-quiet-danger { color: var(--red); }
+.btn-icon-sm { width: 30px; padding: 0; }
+.btn-quiet-danger:hover:not(:disabled) { border-color: var(--red); }
 
 /* Skill editor page */
 .editor-page .page-head { gap: 14px; }
+.editor-title { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.editor-title h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor-title code { color: var(--ink-3); white-space: nowrap; }
+.side-title { display: flex; align-items: baseline; gap: 8px; }
+.side-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.add-version { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.add-version .dropzone { min-height: 72px; background: var(--surface); }
+.add-version-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.side-card > .btn { justify-self: start; }
 .editor-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
 .editor-side { position: sticky; top: 20px; display: grid; gap: 16px; }
+/* The edit sidebar can outgrow the viewport, so let it scroll with the page. */
+.editor-side.scrolls { position: static; }
 .panel h2 { font-size: 15px; font-weight: 700; }
 .panel-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+.editor-main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
 .intro-panel { padding: 20px 20px 16px; }
 .side-card { display: grid; align-content: start; gap: 14px; padding: 20px; }
 .hint { color: var(--ink-3); font-size: 12px; font-weight: 400; }
-.block-tools { display: flex; gap: 8px; }
 .facts { display: grid; gap: 8px; margin: 0; font-size: 13px; }
 .facts div { display: flex; justify-content: space-between; gap: 12px; }
 .facts dt { color: var(--ink-3); }

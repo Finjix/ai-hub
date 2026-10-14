@@ -1,10 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
 import { NextResponse } from "next/server";
-import { isNewerVersion } from "@ai-hub/shared";
 import { getStore, type SkillRow, type VersionRow } from "@/lib/db";
-import { HttpError, jsonError, optionalText, requireSameOrigin, requiredText } from "@/lib/http";
-import { isValidSkillId } from "@/lib/skills";
+import { HttpError, jsonError, requireSameOrigin, requiredText } from "@/lib/http";
+import { isValidSkillId, pruneVersionsForUpload } from "@/lib/skills";
 import { assertVersion, inspectUpload, persistArchive, removeTemp } from "@/lib/zip-upload";
 
 export const runtime = "nodejs";
@@ -13,6 +12,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   let upload: Awaited<ReturnType<typeof inspectUpload>> | undefined;
   let archivePath: string | undefined;
   let committed = false;
+  let pruned: string[] = [];
   try {
     requireSameOrigin(request);
     const { id } = await context.params;
@@ -27,9 +27,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
     const version = requiredText(form.get("version"), "版本号", 100);
     assertVersion(version);
-    const changelog = optionalText(form.get("changelog"), 4000) || "";
     const previous = db.prepare("SELECT version FROM skill_versions WHERE skill_id = ?").all(id) as unknown as Array<{ version: string }>;
-    if (previous.some((item) => item.version === version || (!isNewerVersion(item.version, version) && !isNewerVersion(version, item.version)))) {
+    if (previous.some((item) => item.version === version)) {
       throw new HttpError(409, `版本 ${version} 已经存在，请填写一个新的版本号。`);
     }
 
@@ -41,13 +40,15 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const downloadPath = `/downloads/skills/${id}/${versionId}.zip`;
     try {
       db.exec("BEGIN IMMEDIATE");
-      db.prepare(`INSERT INTO skill_versions (id,skill_id,version,status,sha256,size,download_path,archive_path,markdown,changelog,created_at,published_at)
-        VALUES (?,?,?,'draft',?,?,?,?,?,?,?,NULL)`).run(versionId, id, version, sha256, size, downloadPath, archivePath, markdown, changelog, new Date().toISOString());
+      pruned = pruneVersionsForUpload(db, id);
+      db.prepare(`INSERT INTO skill_versions (id,skill_id,version,status,sha256,size,download_path,archive_path,markdown,created_at,published_at)
+        VALUES (?,?,?,'draft',?,?,?,?,?,?,NULL)`).run(versionId, id, version, sha256, size, downloadPath, archivePath, markdown, new Date().toISOString());
       db.prepare("UPDATE skills SET updated_at=? WHERE id=?").run(new Date().toISOString(), id);
       db.exec("COMMIT");
       committed = true;
     } catch (error) {
       try { db.exec("ROLLBACK"); } catch { /* transaction may not have started */ }
+      pruned = [];
       throw error;
     }
     return NextResponse.json({ ok: true, skillId: id, versionId, version }, { status: 201 });
@@ -56,5 +57,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   } finally {
     if (upload) await removeTemp(upload);
     if (archivePath && !committed) await rm(archivePath, { force: true }).catch(() => undefined);
+    for (const file of pruned) await rm(file, { force: true }).catch(() => undefined);
   }
 }

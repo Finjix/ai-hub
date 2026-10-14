@@ -1,8 +1,8 @@
 import semver from 'semver';
 
 export interface SkillVersion {
-  id: string; skillId: string; version: string; status: 'draft' | 'published' | 'withdrawn';
-  sha256: string; size: number; downloadPath: string; markdown: string; changelog: string;
+  id: string; skillId: string; version: string; status: 'draft' | 'published';
+  sha256: string; size: number; downloadPath: string; markdown: string;
   createdAt: string; publishedAt: string | null;
 }
 export interface Skill {
@@ -49,6 +49,10 @@ export interface DesktopBridge {
 }
 export function isValidVersion(value: unknown): value is string {
   return typeof value === 'string' && semver.valid(value) === value && value.length <= 64;
+}
+// Skill versions are free-form labels (not necessarily semver); clients only compare them for equality.
+export function isValidSkillVersion(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= 64 && value === value.trim() && !/[\u0000-\u001f\u007f]/.test(value);
 }
 export function isNewerVersion(candidate: string, current: string): boolean {
   return isValidVersion(candidate) && isValidVersion(current) && semver.gt(candidate, current);

@@ -4,7 +4,7 @@ import { mkdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
-import { isValidVersion, validateSkillName } from "@ai-hub/shared";
+import { isValidSkillVersion, validateSkillName } from "@ai-hub/shared";
 import { inspectSkillZip, sha256File } from "@ai-hub/shared/archive";
 import { getStore } from "@/lib/db";
 import { HttpError } from "@/lib/http";
@@ -49,7 +49,7 @@ export async function inspectUpload(file: FormDataEntryValue | null): Promise<In
 }
 
 export function assertVersion(version: string): void {
-  if (!isValidVersion(version)) throw new HttpError(400, "版本号格式无效，请使用语义化版本号，例如 1.2.0。");
+  if (!isValidSkillVersion(version)) throw new HttpError(400, "版本号不能为空、不能超过 64 个字符，也不能包含控制字符。");
 }
 
 export async function persistArchive(upload: InspectedUpload, skillId: string, versionId: string): Promise<string> {

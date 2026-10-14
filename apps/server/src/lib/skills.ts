@@ -1,6 +1,17 @@
-import { isNewerVersion } from "@ai-hub/shared";
 import type { Skill, SkillDetail, SkillListResponse, SkillVersion } from "@ai-hub/shared";
+import type { DatabaseSync } from "node:sqlite";
 import { getStore, type SkillRow, type VersionRow } from "./db";
+
+export const MAX_VERSIONS = 3;
+
+// Makes room for one more version by deleting the oldest unpublished ones. Runs inside the
+// caller's transaction; returns the archives to remove once it commits.
+export function pruneVersionsForUpload(db: DatabaseSync, skillId: string): string[] {
+  const rows = db.prepare("SELECT * FROM skill_versions WHERE skill_id = ? ORDER BY created_at ASC").all(skillId) as unknown as VersionRow[];
+  const removable = rows.filter((row) => row.status !== "published").slice(0, Math.max(0, rows.length - (MAX_VERSIONS - 1)));
+  for (const row of removable) db.prepare("DELETE FROM skill_versions WHERE id = ?").run(row.id);
+  return removable.map((row) => row.archive_path);
+}
 
 function toVersion(row: VersionRow): SkillVersion {
   return {
@@ -12,7 +23,6 @@ function toVersion(row: VersionRow): SkillVersion {
     size: row.size,
     downloadPath: row.download_path,
     markdown: row.markdown,
-    changelog: row.changelog,
     createdAt: row.created_at,
     publishedAt: row.published_at,
   };
@@ -55,10 +65,9 @@ function versionsFor(id: string, publicOnly: boolean): SkillVersion[] {
   return (db.prepare(query).all(id) as unknown as VersionRow[]).map(toVersion);
 }
 
+// One version per skill is live; it is whichever the admin published last, not necessarily the highest.
 export function latestPublished(versions: SkillVersion[]): SkillVersion | null {
-  return versions.filter((version) => version.status === "published").reduce<SkillVersion | null>((latest, version) => {
-    return !latest || isNewerVersion(version.version, latest.version) ? version : latest;
-  }, null);
+  return versions.find((version) => version.status === "published") ?? null;
 }
 
 export function listSkills({ q = "", admin = false }: { q?: string; admin?: boolean } = {}): SkillListResponse {

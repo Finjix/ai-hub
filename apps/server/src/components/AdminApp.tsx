@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatAppVersion } from "@ai-hub/shared";
-import type { Skill, SkillDetail, SkillVersion } from "@ai-hub/shared";
-import SkillEditorPage, { type EditorTarget } from "@/components/SkillEditorPage";
+import type { Skill, SkillDetail } from "@ai-hub/shared";
+import SkillEditorPage, { Status, type EditorTarget } from "@/components/SkillEditorPage";
 
 type Release = { id: string; version: string; createdAt: string; active: boolean; files: string[] };
 type Tab = "skills" | "releases";
@@ -39,11 +39,6 @@ function Mark() {
   return <span className="mark"><img src="/brand-logo.png" alt="Century Games"/></span>;
 }
 
-function Status({ status }: { status: string }) {
-  const labels: Record<string, string> = { active: "已上架", archived: "已下架", draft: "草稿", published: "已发布", withdrawn: "已撤回" };
-  return <span className={`status status-${status}`}>{labels[status] || status}</span>;
-}
-
 function FileField({ name, accept, multiple, label }: { name: string; accept: string; multiple?: boolean; label: string }) {
   const [picked, setPicked] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -67,7 +62,6 @@ export default function Home() {
   const [releases, setReleases] = useState<Release[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [selected, setSelected] = useState<SkillDetail | null>(null);
   const [editor, setEditor] = useState<EditorTarget | null>(null);
   const leaveGuard = useRef<(() => boolean) | null>(null);
   const registerGuard = useCallback((guard: (() => boolean) | null) => { leaveGuard.current = guard; }, []);
@@ -91,13 +85,6 @@ export default function Home() {
     finally { setLoading(false); }
   }, [refreshSkills, refreshReleases]);
   useEffect(() => { void refreshAll(); }, [refreshAll]);
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSelected(null);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
   useEffect(() => { if (!toast) return; const timer = window.setTimeout(() => setToast(""), 4200); return () => window.clearTimeout(timer); }, [toast]);
 
   const visibleSkills = useMemo(() => skills.filter((skill) => {
@@ -115,54 +102,12 @@ export default function Home() {
     setError("");
     try {
       const result = await api<{ skill: SkillDetail }>(`/api/v1/admin/skills/${skill.id}`);
-      setSelected(result.skill);
+      setEditor({ mode: "edit", skill: result.skill });
     } catch (cause) { showError(cause); }
   }
 
   function showError(cause: unknown) {
     setToast(cause instanceof Error ? cause.message : "操作失败，请稍后重试。");
-  }
-
-  async function saveMetadata(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selected) return;
-    const form = new FormData(event.currentTarget);
-    setBusy(true);
-    try {
-      await api(`/api/v1/admin/skills/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ displayName: form.get("displayName"), status: form.get("status") }) });
-      await refreshSkills();
-      await openSkill({ ...selected, displayName: String(form.get("displayName")) });
-      setToast("已保存");
-    } catch (cause) { showError(cause); }
-    finally { setBusy(false); }
-  }
-
-  async function deleteSkill() {
-    if (!selected) return;
-    if (!window.confirm(`确定删除技能「${selected.displayName}」吗？所有版本和技能包将被永久删除，无法恢复。`)) return;
-    setBusy(true);
-    try {
-      await api(`/api/v1/admin/skills/${selected.id}`, { method: "DELETE" });
-      setSelected(null);
-      await refreshSkills();
-      setToast("技能已删除");
-    } catch (cause) { showError(cause); }
-    finally { setBusy(false); }
-  }
-
-  async function uploadVersion(event: React.FormEvent<HTMLFormElement>, targetId: string) {
-    event.preventDefault();
-    const formElement = event.currentTarget;
-    const data = new FormData(formElement);
-    setBusy(true);
-    try {
-      await api(`/api/v1/admin/skills/${targetId}/versions`, { method: "POST", body: data });
-      formElement.reset();
-      await refreshSkills();
-      await openSkill({ ...selected!, id: targetId });
-      setToast("新版本已添加为草稿");
-    } catch (cause) { showError(cause); }
-    finally { setBusy(false); }
   }
 
   function goTo(next: Tab) {
@@ -171,28 +116,10 @@ export default function Home() {
     setTab(next);
   }
 
-  function editIntroduction() {
-    if (!selected) return;
-    setEditor({ mode: "edit", skill: selected });
-    setSelected(null);
-  }
-
   async function editorSaved(message: string) {
     setEditor(null);
     setToast(message);
     await refreshSkills().catch(showError);
-  }
-
-  async function changeVersion(version: SkillVersion, action: "publish" | "withdraw") {
-    if (!selected) return;
-    setBusy(true);
-    try {
-      await api(`/api/v1/admin/skills/${selected.id}/versions/${version.id}/${action}`, { method: "POST" });
-      await refreshSkills();
-      await openSkill(selected);
-      setToast(action === "publish" ? `${version.version} 已发布` : `${version.version} 已撤回`);
-    } catch (cause) { showError(cause); }
-    finally { setBusy(false); }
   }
 
   async function uploadRelease(event: React.FormEvent<HTMLFormElement>) {
@@ -223,7 +150,7 @@ export default function Home() {
     <main className="main">
       {error && <div className="banner"><span>{error}</span><button className="btn btn-line btn-sm" onClick={() => void refreshAll()}>重新连接</button></div>}
 
-      {tab === "skills" && editor ? <SkillEditorPage key={editor.mode === "edit" ? editor.skill.id : "new"} target={editor} onClose={() => setEditor(null)} onSaved={(message) => void editorSaved(message)} onError={setToast} registerGuard={registerGuard}/>
+      {tab === "skills" && editor ? <SkillEditorPage key={editor.mode === "edit" ? editor.skill.id : "new"} target={editor} onClose={() => setEditor(null)} onSaved={(message) => void editorSaved(message)} onNotice={(message) => { setToast(message); void refreshSkills().catch(showError); }} onError={setToast} registerGuard={registerGuard}/>
       : tab === "skills" ? <section className="page">
         <header className="page-head"><h1>技能库</h1><div className="head-tools"><button className="btn btn-ink" onClick={() => setEditor({ mode: "create" })}><Icon name="plus" size={16}/>添加技能</button></div></header>
         <div className="toolbar">
@@ -234,7 +161,7 @@ export default function Home() {
         {loading ? <div className="empty"><span className="spinner"/></div> : visibleSkills.length ? <div className="table">
           <div className="table-row table-head" aria-hidden="true"><span>技能</span><span>线上版本</span><span>状态</span><span>更新时间</span></div>
           {visibleSkills.map((skill) => <button className="table-row skill-card" key={skill.id} onClick={() => void openSkill(skill)}>
-            <span className="cell-name"><strong>{skill.displayName}</strong><small>{skill.name}</small></span>
+            <span className="cell-name"><strong>{skill.displayName}</strong></span>
             <span className={skill.latestVersion ? "num" : "cell-muted"}>{skill.latestVersion ? `${skill.latestVersion.version}` : "未发布"}</span>
             <span><Status status={skill.status}/></span>
             <span className="cell-muted">{formatDate(skill.updatedAt)}</span>
@@ -265,33 +192,6 @@ export default function Home() {
         </div>)}</div> : <div className="empty small"><p>还没有发布记录。</p></div>}
       </section>}
     </main>
-
-    {selected && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}><section className="drawer" role="dialog" aria-modal="true" aria-label="技能详情">
-      <header className="drawer-head"><div><h2>{selected.displayName}</h2><code>{selected.name}</code></div><Status status={selected.status}/><button className="icon-btn" aria-label="关闭" onClick={() => setSelected(null)}><Icon name="close"/></button></header>
-      <div className="drawer-body">
-        <form className="form-block" onSubmit={saveMetadata}>
-          <div className="block-head"><h3>基本信息</h3><div className="block-tools"><button type="button" className="btn btn-line btn-sm" onClick={editIntroduction}>编辑介绍</button><button className="btn btn-line btn-sm" disabled={busy}>保存</button></div></div>
-          <label className="field">展示名称<input name="displayName" defaultValue={selected.displayName} required maxLength={120}/></label>
-          <label className="field">上架状态<select name="status" defaultValue={selected.status}><option value="active">已上架</option><option value="archived">已下架</option></select></label>
-        </form>
-        <section className="form-block">
-          <div className="block-head"><h3>版本<span className="count">{selected.versions.length}</span></h3></div>
-          {selected.versions.length ? <ol className="versions">{selected.versions.map((version) => <li className={`version version-${version.status}`} key={version.id}>
-            <div className="version-main"><div className="version-line"><strong className="num">{version.version}</strong><Status status={version.status}/></div><small>{version.status === "published" ? `发布于 ${formatDate(version.publishedAt || version.createdAt)}` : `创建于 ${formatDate(version.createdAt)}`}</small>{version.changelog && <p>{version.changelog}</p>}</div>
-            {version.status === "draft" && <button className="btn btn-green btn-sm" disabled={busy || selected.status === "archived"} onClick={() => void changeVersion(version, "publish")}>发布</button>}
-            {version.status === "published" && <button className="btn btn-line btn-sm" disabled={busy} onClick={() => void changeVersion(version, "withdraw")}>撤回</button>}
-          </li>)}</ol> : <p className="muted">还没有版本。</p>}
-        </section>
-        <form className="form-block" onSubmit={(event) => void uploadVersion(event, selected.id)}>
-          <div className="block-head"><h3>上传新版本</h3></div>
-          <div className="form-row"><label className="field">版本号<input name="version" placeholder="如 1.2.0" required/></label><div className="field">技能包<FileField name="file" accept=".zip" label="选择 ZIP"/></div></div>
-          <label className="field">更新说明<textarea name="changelog" rows={2}/></label>
-          <p className="muted">ZIP 内 SKILL.md 的 name 须为 <code>{selected.name}</code>，上传后为草稿。</p>
-          <button className="btn btn-ink" disabled={busy}>{busy ? "上传中…" : "添加为草稿"}</button>
-        </form>
-        <footer className="drawer-foot"><span>创建于 {formatDate(selected.createdAt)}</span><span>更新于 {formatDate(selected.updatedAt)}</span><button className="btn btn-danger btn-sm" disabled={busy} onClick={() => void deleteSkill()}>删除技能</button></footer>
-      </div>
-    </section></div>}
 
     {toast && <div className="toast" role="status"><span>{toast}</span><button aria-label="关闭提示" onClick={() => setToast("")}><Icon name="close" size={15}/></button></div>}
   </div>;
